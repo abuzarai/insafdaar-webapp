@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────────────
+   Theme & Custom Properties
+───────────────────────────────────────────────── */
+:root {
+  --brand: #003366;          /* deep judiciary blue */
+  --brand-2: #014080;        /* darker hover variant */
+  --brand-light: #004aad;    /* slightly lighter blue used in some buttons */
+  --accent: #f5b301;         /* gold accent */
+  --bg: #f6f8fb;             /* very light background */
+
+  /* Voice UI support colors */
+  --indigo-950: #1e1b4b;
+  --blue-950: #172554;
+  --blue-600: #2563eb;
+  --indigo-500: #6366f1;
+  --violet-600: #7c3aed;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+}
+
+/* ────────────────────────────────────────────────
+   Base Styles
+───────────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-[var(--bg)] text-gray-900 font-sans antialiased;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ────────────────────────────────────────────────
+   Reusable Components / Utilities
+───────────────────────────────────────────────── */
+.card {
+  @apply bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden;
+}
+
+.input {
+  @apply w-full border border-gray-300 rounded-xl px-4 py-3
+         focus:outline-none focus:ring-2 focus:ring-[var(--brand)]
+         focus:border-transparent transition-all duration-200;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-5 py-2.5
+         font-semibold transition-all duration-200;
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--brand-2);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px -5px rgba(0, 51, 102, 0.25);
+}
+
+.btn-outline {
+  @apply border border-[var(--brand)] text-[var(--brand)];
+}
+
+.btn-outline:hover {
+  background: var(--brand);
+  color: white;
+}
+
+/* ────────────────────────────────────────────────
+   Voice UI Animations (Recording / Live Feedback)
+───────────────────────────────────────────────── */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.075);
+  }
+}
+
+@keyframes ping-slow {
+  75%, 100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes blink-dot {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0.25;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-ping-slow {
+  animation: ping-slow 2.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-blink-dot {
+  animation: blink-dot 1.1s ease-in-out infinite;
+}
+
+/* ────────────────────────────────────────────────
+   Subtle Float Animation (UI polish)
+───────────────────────────────────────────────── */
+.floaty {
+  animation: floaty 6s ease-in-out infinite;
+}
+
+@keyframes floaty {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* ────────────────────────────────────────────────
+   Accessibility Enhancements
+───────────────────────────────────────────────── */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.3);
+}

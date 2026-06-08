@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: insafdaar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-insafdaar_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: insafdaar-backend
+    depends_on:
+      - db
+    environment:
+      PORT: ${PORT:-5000}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-insafdaar_db}
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+
+      # Voice Intake Agent
+      VOICE_SERVICE_URL: ${VOICE_SERVICE_URL:-https://voice-interview-agent-e5zeguajta-uc.a.run.app}
+      VOICE_WEBHOOK_SECRET: ${VOICE_WEBHOOK_SECRET}
+
+      # Legal RAG Proxy
+      LEGAL_RAG_API_URL: ${LEGAL_RAG_API_URL}
+      LEGAL_RAG_REQUIRE_AUTH: ${LEGAL_RAG_REQUIRE_AUTH:-false}
+      LEGAL_RAG_AUDIENCE: ${LEGAL_RAG_AUDIENCE}
+      LEGAL_RAG_TIMEOUT_MS: ${LEGAL_RAG_TIMEOUT_MS:-45000}
+      LEGAL_ASSISTANT_GUEST_PROMPT_LIMIT: ${LEGAL_ASSISTANT_GUEST_PROMPT_LIMIT:-3}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/run/secrets/gcp-rag-invoker.json}
+      DRAFTING_ASSISTANT_URL: ${DRAFTING_ASSISTANT_URL:-https://drafting-assistant-e5zeguajta-uc.a.run.app}
+      DRAFTING_ASSISTANT_TIMEOUT_MS: ${DRAFTING_ASSISTANT_TIMEOUT_MS:-45000}
+      DRAFTING_ASSISTANT_GENERATE_TIMEOUT_MS: ${DRAFTING_ASSISTANT_GENERATE_TIMEOUT_MS:-90000}
+
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ${GCP_RAG_KEY_PATH:-./secrets/gcp-rag-invoker.json}:/run/secrets/gcp-rag-invoker.json:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # API must be reachable from the user’s browser; use host-mapped ports.
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:5000}
+        REACT_APP_LEGAL_RAG_API: ${REACT_APP_LEGAL_RAG_API:-https://legal-rag-api-302722426305.us-central1.run.app}
+        REACT_APP_CHAT_HISTORY_API: ${REACT_APP_CHAT_HISTORY_API:-http://localhost:5000}
+        REACT_APP_VOICE_SERVICE_URL: ${REACT_APP_VOICE_SERVICE_URL:-https://voice-interview-agent-e5zeguajta-uc.a.run.app}
+    container_name: insafdaar-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
