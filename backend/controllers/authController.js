@@ -120,7 +120,7 @@ export const registerUser = async (req, res) => {
     }
 
     // ✅ ADDED: Admin email notification (fallback email)
-    const adminEmail = process.env.ADMIN_EMAIL || "itxmeatif8@gmail.com";
+    const adminEmail = process.env.ADMIN_EMAIL;
     try {
       const u = newUser.rows[0];
       await sendNotificationEmail({

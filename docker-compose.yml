@@ -37,7 +37,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL}
 
       # Voice Intake Agent
-      VOICE_SERVICE_URL: ${VOICE_SERVICE_URL:-https://voice-interview-agent-e5zeguajta-uc.a.run.app}
+      VOICE_SERVICE_URL: ${VOICE_SERVICE_URL}
       VOICE_WEBHOOK_SECRET: ${VOICE_WEBHOOK_SECRET}
 
       # Legal RAG Proxy
@@ -47,7 +47,7 @@ services:
       LEGAL_RAG_TIMEOUT_MS: ${LEGAL_RAG_TIMEOUT_MS:-45000}
       LEGAL_ASSISTANT_GUEST_PROMPT_LIMIT: ${LEGAL_ASSISTANT_GUEST_PROMPT_LIMIT:-3}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/run/secrets/gcp-rag-invoker.json}
-      DRAFTING_ASSISTANT_URL: ${DRAFTING_ASSISTANT_URL:-https://drafting-assistant-e5zeguajta-uc.a.run.app}
+      DRAFTING_ASSISTANT_URL: ${DRAFTING_ASSISTANT_URL}
       DRAFTING_ASSISTANT_TIMEOUT_MS: ${DRAFTING_ASSISTANT_TIMEOUT_MS:-45000}
       DRAFTING_ASSISTANT_GENERATE_TIMEOUT_MS: ${DRAFTING_ASSISTANT_GENERATE_TIMEOUT_MS:-90000}
 
@@ -65,9 +65,9 @@ services:
       args:
         # API must be reachable from the user’s browser; use host-mapped ports.
         REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:5000}
-        REACT_APP_LEGAL_RAG_API: ${REACT_APP_LEGAL_RAG_API:-https://legal-rag-api-302722426305.us-central1.run.app}
+        REACT_APP_LEGAL_RAG_API: ${REACT_APP_LEGAL_RAG_API}
         REACT_APP_CHAT_HISTORY_API: ${REACT_APP_CHAT_HISTORY_API:-http://localhost:5000}
-        REACT_APP_VOICE_SERVICE_URL: ${REACT_APP_VOICE_SERVICE_URL:-https://voice-interview-agent-e5zeguajta-uc.a.run.app}
+        REACT_APP_VOICE_SERVICE_URL: ${REACT_APP_VOICE_SERVICE_URL}
     container_name: insafdaar-frontend
     depends_on:
       - backend

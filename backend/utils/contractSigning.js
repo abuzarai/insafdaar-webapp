@@ -3,7 +3,7 @@ import crypto from "crypto";
 const OTP_TTL_MINUTES = Number(process.env.CONTRACT_OTP_TTL_MINUTES || 10);
 const OTP_SESSION_TTL_MINUTES = Number(process.env.CONTRACT_OTP_SESSION_TTL_MINUTES || 20);
 const OTP_MAX_ATTEMPTS = Number(process.env.CONTRACT_OTP_MAX_ATTEMPTS || 5);
-const SESSION_SECRET = process.env.JWT_SECRET || "contract-signing-secret";
+const SESSION_SECRET = process.env.JWT_SECRET;
 
 function toBase64Url(value) {
   return Buffer.from(value, "utf8").toString("base64url");

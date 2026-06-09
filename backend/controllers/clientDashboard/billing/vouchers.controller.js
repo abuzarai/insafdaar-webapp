@@ -143,7 +143,7 @@
 //     );
 
 //     // ✅ EMAIL ADMIN (fallback to your email)
-//     const adminEmail = process.env.ADMIN_EMAIL || "itxmeatif8@gmail.com";
+//     const adminEmail = process.env.ADMIN_EMAIL;
 
 //     try {
 //       await sendNotificationEmail({
@@ -353,8 +353,8 @@ export async function uploadVoucherProof(req, res) {
       // do NOT fail upload if notification fails
     }
 
-    // ✅ EMAIL ADMIN (fallback to your email)
-    const adminEmail = process.env.ADMIN_EMAIL || "itxmeatif8@gmail.com";
+    // ✅ EMAIL ADMIN
+    const adminEmail = process.env.ADMIN_EMAIL;
 
     try {
       await sendNotificationEmail({
