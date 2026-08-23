@@ -75,3 +75,4 @@ portfolio_cleanup.sh
 *.tmp
 *.temp
 .cache/
+ai-data/
