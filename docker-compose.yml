@@ -150,8 +150,7 @@ services:
     environment:
       ENVIRONMENT: production
       GEMINI_API_KEY: ${VOICE_GEMINI_API_KEY}
-      GEMINI_MODEL: ${VOICE_GEMINI_MODEL:-gemini-2.5-flash-lite}
-      STT_MODEL_SIZE: ${STT_MODEL_SIZE:-small}
+      GEMINI_MODEL: ${VOICE_GEMINI_MODEL:-gemini-2.5-flash}
       AUDIO_DIR: /data/audio
       EXPRESS_WEBHOOK_URL: http://backend:5000/api/webhooks/interview-complete
       EXPRESS_WEBHOOK_SECRET: ${VOICE_WEBHOOK_SECRET}
@@ -160,8 +159,7 @@ services:
       - "127.0.0.1:8002:8000"   # browser-facing (localhost = secure ctx for mic)
     volumes:
       - ./ai-data/voice-audio:/data/audio
-      - ./ai-data/whisper-cache:/root/.cache
-    mem_limit: 2500m
+    mem_limit: 256m
 
 volumes:
   postgres_data:
