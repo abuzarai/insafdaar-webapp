@@ -81,8 +81,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pool from "../db.js";
 import dotenv from "dotenv";
-import { sendNotificationEmail } from "../utils/mailer.js";      // ✅ ADDED
-import { notifyAllAdmins } from "../utils/notify.js";            // ✅ ADDED
+import { sendNotificationEmail } from "../utils/mailer.js";      // ADDED
+import { notifyAllAdmins } from "../utils/notify.js";            // ADDED
 
 dotenv.config();
 

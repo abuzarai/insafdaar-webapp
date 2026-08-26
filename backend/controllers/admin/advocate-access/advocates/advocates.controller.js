@@ -1,5 +1,5 @@
 import pool from "../../../../db.js";
-import { sendNotificationEmail } from "../../../../utils/mailer.js"; // ✅ FIXED PATH
+import { sendNotificationEmail } from "../../../../utils/mailer.js"; // FIXED PATH
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 

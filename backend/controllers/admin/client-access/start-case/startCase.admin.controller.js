@@ -430,6 +430,8 @@ export async function adminListAssignmentQueue(req, res) {
         cu.email AS client_email,
         pa.name AS preferred_advocate_name,
         pa.email AS preferred_advocate_email,
+        aa.id AS assigned_advocate_id,
+        aa.name AS assigned_advocate_name,
         ((li.transcript IS NOT NULL) OR (li.analysis IS NOT NULL)) AS has_interview_results,
         li.completed_at AS interview_completed_at,
         COALESCE(
@@ -448,6 +450,7 @@ export async function adminListAssignmentQueue(req, res) {
       FROM public.client_cases c
       JOIN public.users cu ON cu.id = c.user_id
       LEFT JOIN public.users pa ON pa.id = c.preferred_advocate_id
+      LEFT JOIN public.users aa ON aa.id = c.assigned_advocate_id
       LEFT JOIN LATERAL (
         SELECT i.id, i.transcript, i.analysis, i.completed_at
         FROM public.case_intake_sessions i
@@ -518,6 +521,8 @@ export async function adminRunCaseMatching(req, res) {
         c.language,
         c.legal_domain,
         c.preferred_advocate_id,
+        c.assigned_advocate_id,
+        c.status,
         cp.city AS client_city
       FROM public.client_cases c
       LEFT JOIN public.client_profiles cp ON cp.user_id = c.user_id
@@ -533,6 +538,7 @@ export async function adminRunCaseMatching(req, res) {
     }
 
     const caseRow = caseR.rows[0];
+    const alreadyAssigned = Number(caseRow.assigned_advocate_id || 0) > 0;
 
     const intakeR = await client.query(
       `
@@ -652,14 +658,19 @@ export async function adminRunCaseMatching(req, res) {
       );
     }
 
-    await transitionCaseStatus(client, {
-      caseId,
-      toStatus: CASE_STATUS.MATCHING_REVIEW,
-      actorUserId: req.user?.id || null,
-      actorRole: req.user?.role || "ADMIN",
-      reason: "Matching run completed",
-      metadata: { runId, shortlistSize },
-    });
+    if (!alreadyAssigned) {
+      await transitionCaseStatus(client, {
+        caseId,
+        toStatus: CASE_STATUS.MATCHING_REVIEW,
+        actorUserId: req.user?.id || null,
+        actorRole: req.user?.role || "ADMIN",
+        reason: "Matching run completed",
+        metadata: { runId, shortlistSize },
+      });
+    }
+    // NOTE: if the case already has an assigned advocate, the status is NOT
+    // rewound to MATCHING_REVIEW — re-running matching must not demote an
+    // assignment. The new shortlist still gets persisted above.
 
     await client.query("COMMIT");
 
@@ -782,7 +793,7 @@ export async function adminListCaseMatchCandidates(req, res) {
  * body: { caseId, advocateId }
  */
 export async function adminAssignAdvocateToCase(req, res) {
-  const clientTitle = "✅ Advocate Assigned to Your Case";
+  const clientTitle = "Advocate Assigned to Your Case";
   const advocateTitle = "📌 New Case Assigned";
 
   const dbClient = await pool.connect();
@@ -915,7 +926,7 @@ export async function adminAssignAdvocateToCase(req, res) {
       }).catch(() => {});
     }
 
-    return res.json({ message: "✅ Advocate assigned successfully" });
+    return res.json({ message: "Advocate assigned successfully" });
   } catch (err) {
     try {
       await dbClient.query("ROLLBACK");

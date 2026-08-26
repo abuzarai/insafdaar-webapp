@@ -28,7 +28,7 @@ router.post("/verify-otp", async (req, res) => {
     const user = userRes.rows[0];
 
     if (user.email_verified) {
-      return res.json({ message: "Email already verified ✅" });
+      return res.json({ message: "Email already verified " });
     }
 
     // get latest OTP (not expired, not used)
@@ -65,7 +65,7 @@ router.post("/verify-otp", async (req, res) => {
     await pool.query("UPDATE users SET email_verified=true WHERE id=$1", [user.id]);
     await pool.query("UPDATE email_otps SET used=true WHERE id=$1", [otpRow.id]);
 
-    return res.json({ message: "Email verified successfully ✅" });
+    return res.json({ message: "Email verified successfully " });
   } catch (err) {
     console.error("verify-otp error:", err);
     return res.status(500).json({ error: "Server error" });

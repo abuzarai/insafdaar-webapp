@@ -277,6 +277,15 @@ export async function getFullProfile(req, res) {
       [userId]
     );
 
+    // ✅ Registration prefill: bar_id/specialization/experience were captured at
+    // signup into advocate_details — use them as fallbacks until the profile
+    // has its own values.
+    const detailsR = await pool.query(
+      `SELECT bar_id, specialization, experience FROM advocate_details WHERE user_id=$1`,
+      [userId]
+    );
+    const regDetails = detailsR.rows[0] || {};
+
     const availR = await pool.query(
       `SELECT * FROM advocate_availability_settings WHERE user_id=$1`,
       [userId]
@@ -325,12 +334,20 @@ export async function getFullProfile(req, res) {
       email: u.email ?? null,
       phone: p.phone ?? null,
       headline: p.headline ?? null,
-      experienceYears: p.experience_years ?? 0,
-      barCouncilId: p.bar_council_id ?? null,
+      experienceYears:
+        p.experience_years > 0
+          ? p.experience_years
+          : Number.parseInt(regDetails.experience, 10) || 0,
+      barCouncilId: p.bar_council_id ?? regDetails.bar_id ?? null,
       city: p.city ?? null,
       court: p.court ?? null,
       languages: p.languages ?? [],
-      practiceAreas: p.practice_areas ?? [],
+      practiceAreas:
+        Array.isArray(p.practice_areas) && p.practice_areas.length > 0
+          ? p.practice_areas
+          : regDetails.specialization
+          ? [regDetails.specialization]
+          : [],
       bio: p.bio ?? null,
       avatarUrl: p.avatar_url ?? null,
       publicProfileEnabled: p.public_profile_enabled ?? true,

@@ -81,14 +81,14 @@ export async function listMyCases(req, res) {
             AND n.is_read = false
         ), 0) AS alerts_count,
 
-        -- ✅ latest billing (voucher/payment info) for this case
+        -- latest billing (voucher/payment info) for this case
         bill.id               AS billing_id,
         bill.amount           AS billing_amount,
         bill.status           AS billing_status,
         bill.due_date         AS billing_due_date,
         bill.voucher_pdf_url  AS billing_voucher_pdf_url,
 
-        -- ✅ nearest upcoming approved meeting for this case
+        -- nearest upcoming approved meeting for this case
         meet.id               AS meeting_id,
         meet.start_at         AS meeting_start_at,
         meet.end_at           AS meeting_end_at,

@@ -16,7 +16,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get("/assigned", getAssignedCases);
-router.get("/:caseId/full", getCaseFull);   // ✅ NEW
+router.get("/:caseId/full", getCaseFull);   // NEW
 router.get("/:caseId/vouchers", getCaseVouchers);
 router.get("/:caseId", getCaseDetails);
 router.post("/:caseId/accept", acceptCase);

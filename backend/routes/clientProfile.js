@@ -156,7 +156,12 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Get extended profile
     const profRes = await pool.query(
-      "SELECT * FROM client_profiles WHERE user_id = $1",
+      `
+      SELECT cp.*, cd.cnic AS details_cnic, cd.phone AS details_phone
+      FROM client_profiles cp
+      LEFT JOIN client_details cd ON cd.user_id = cp.user_id
+      WHERE cp.user_id = $1
+      `,
       [userId]
     );
 
@@ -171,8 +176,10 @@ router.get("/", authMiddleware, async (req, res) => {
           ? new Date(userRes.rows[0].created_at).toISOString().split("T")[0]
           : "",
 
-        phone: profileRow.phone || "",
-        cnic: profileRow.cnic || "",
+        // Prefill from registration data: registration writes phone/cnic to
+        // client_details, so fall back to it when the profile row is missing them.
+        phone: profileRow.phone || profileRow.details_phone || "",
+        cnic: profileRow.cnic || profileRow.details_cnic || "",
         city: profileRow.city || "",
         address: profileRow.address || "",
         location: profileRow.location || "",
@@ -271,6 +278,22 @@ router.put("/", authMiddleware, async (req, res) => {
       `,
       values
     );
+
+    // ✅ Keep client_details in sync (registration stored cnic/phone there)
+    if ((p.cnic || "").trim() || (p.phone || "").trim()) {
+      await pool.query(
+        `
+        INSERT INTO client_details (user_id, cnic, phone)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id)
+        DO UPDATE SET
+          cnic = COALESCE(NULLIF($2, ''), client_details.cnic),
+          phone = COALESCE(NULLIF($3, ''), client_details.phone),
+          updated_at = NOW()
+        `,
+        [userId, (p.cnic || "").trim(), (p.phone || "").trim()]
+      );
+    }
 
     return res.json({
       success: true,

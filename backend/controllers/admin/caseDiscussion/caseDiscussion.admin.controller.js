@@ -20,7 +20,9 @@ function isValidMeetLink(url) {
  */
 export async function adminListMeetingRequests(req, res) {
   try {
-    const status = String(req.query.status || "PENDING_ADMIN").toUpperCase();
+    const rawStatus = String(req.query.status || "").trim().toUpperCase();
+    // Empty status = ALL meetings. Only filter when a concrete status is asked.
+    const status = rawStatus || null;
 
     const r = await pool.query(
       `
@@ -35,10 +37,10 @@ export async function adminListMeetingRequests(req, res) {
       JOIN public.client_cases c ON c.id = m.case_id
       JOIN public.users cu ON cu.id = m.client_user_id
       JOIN public.users au ON au.id = m.advocate_id
-      WHERE m.status = $1
+      ${status ? "WHERE m.status = $1" : ""}
       ORDER BY m.created_at DESC
       `,
-      [status]
+      status ? [status] : []
     );
 
     return res.json({ ok: true, meetings: r.rows });
@@ -143,14 +145,14 @@ export async function adminApproveMeetingRequest(req, res) {
     const startStr = new Date(m.start_at).toLocaleString("en-GB", { timeZone: "Asia/Karachi" });
     const endStr = new Date(m.end_at).toLocaleString("en-GB", { timeZone: "Asia/Karachi" });
 
-    const subject = `✅ Meeting Confirmed | Case #${m.case_id}`;
+    const subject = `Meeting Confirmed | Case #${m.case_id}`;
 
     // ✅ Emails (best-effort)
     if (clientEmail) {
       sendNotificationEmail({
         to: clientEmail,
         subject,
-        title: "Meeting Confirmed ✅",
+        title: "Meeting Confirmed ",
         message: `
           <p>Hi ${people.client_name || "Client"},</p>
           <p>Your meeting has been confirmed for <b>Case #${m.case_id}</b>.</p>
@@ -167,7 +169,7 @@ export async function adminApproveMeetingRequest(req, res) {
       sendNotificationEmail({
         to: advocateEmail,
         subject,
-        title: "Meeting Approved ✅",
+        title: "Meeting Approved ",
         message: `
           <p>Hi ${people.advocate_name || "Advocate"},</p>
           <p>Your meeting request has been approved for <b>Case #${m.case_id}</b>.</p>

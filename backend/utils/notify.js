@@ -77,7 +77,7 @@ export async function notifyClientAndAdvocateAssigned({
   clientName,
   advocateName,
 }) {
-  const clientTitle = "✅ Advocate Assigned to Your Case";
+  const clientTitle = "Advocate Assigned to Your Case";
   const clientMsg = `
     <p>Your case <b>#${caseId}</b> has been assigned to an advocate.</p>
     <p><b>Advocate:</b> ${advocateName || "Assigned Advocate"}</p>

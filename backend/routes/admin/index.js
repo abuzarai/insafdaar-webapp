@@ -8,12 +8,12 @@ import activityRoutes from "./client-access/activity/activity.routes.js";
 import statsRoutes from "./client-access/stats/stats.routes.js";
 import dashboardRoutes from "./client-access/dashboard/dashboard.routes.js";
 import billingRoutes from "./client-access/billing/billing.routes.js";
-import notificationsRoutes from "./client-access/notifications/notifications.routes.js"; // ✅ client notifications
+import notificationsRoutes from "./client-access/notifications/notifications.routes.js"; // client notifications
 import casesRoutes from "./client-access/cases/cases.routes.js";
 import feedbackRoutes from "./client-access/feedback/feedback.routes.js";
 
 // ✅ NEW: admin can view client's Start Case intake (draft + uploaded docs + voice) + assign advocate
-import adminStartCaseRoutes from "./client-access/start-case/startCase.routes.js"; // ✅ ADD
+import adminStartCaseRoutes from "./client-access/start-case/startCase.routes.js"; // ADD
 
 // ✅ admin dashboard notifications (bell)
 import adminDashboardNotificationsRoutes from "./notifications/adminNotifications.routes.js";
@@ -45,8 +45,8 @@ router.use("/notifications", adminDashboardNotificationsRoutes);
 router.use("/client-access/dashboard", dashboardRoutes);
 router.use("/client-access/billing", billingRoutes);
 router.use("/client-access/notifications", notificationsRoutes);
-router.use("/client-access/cases", casesRoutes); // ✅ /api/admin/client-access/cases/:userId
-router.use("/client-access/feedback", feedbackRoutes); // ✅ /api/admin/client-access/feedback/:userId
+router.use("/client-access/cases", casesRoutes); // /api/admin/client-access/cases/:userId
+router.use("/client-access/feedback", feedbackRoutes); // /api/admin/client-access/feedback/:userId
 
 // ✅ NEW: Start Case intake access for admin
 // base: /api/admin/client-access/start-case

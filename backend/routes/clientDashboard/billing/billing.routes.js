@@ -10,7 +10,7 @@ import {
 import {
   listMyVouchers,
   getMyVoucherById,
-  uploadVoucherProof, // ✅ STEP 2
+  uploadVoucherProof, // STEP 2
 } from "../../../controllers/clientDashboard/billing/vouchers.controller.js";
 
 import { proofUpload } from "./billing.uploads.js";

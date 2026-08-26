@@ -166,6 +166,22 @@ export async function createVoucher(req, res) {
       });
     }
 
+    // ✅ Generate PDF immediately so the voucher is viewable/downloadable by
+    // the client right away (previously only "Issue/Send" produced the PDF).
+    const billingId = r.rows[0]?.id;
+    if (billingId) {
+      try {
+        const gen = await generateVoucherPdfForBillingId(billingId);
+        if (gen?.publicUrl) {
+          await pool.query(`UPDATE public.client_billing SET voucher_pdf_url=$2, updated_at=NOW() WHERE id=$1`, [billingId, gen.publicUrl]);
+          r.rows[0].voucher_pdf_url = gen.publicUrl;
+        }
+      } catch (pdfErr) {
+        // PDF generation must not fail voucher creation; log and continue.
+        console.error("createVoucher: PDF generation failed (voucher still created):", pdfErr);
+      }
+    }
+
     return res.json({ ok: true, billing: r.rows[0] });
   } catch (e) {
     console.error("createVoucher error:", e);
@@ -654,6 +670,25 @@ export async function createVoucherForCase(req, res) {
         sequence_no: ins.rows[0]?.sequence_no,
       },
     });
+
+    // ✅ Generate PDF immediately so the voucher is viewable/downloadable by
+    // the client right away (previously only "Issue/Send" produced the PDF).
+    const billingId = ins.rows[0]?.id;
+    if (billingId) {
+      try {
+        const gen = await generateVoucherPdfForBillingId(billingId);
+        if (gen?.publicUrl) {
+          await dbClient.query(
+            `UPDATE public.client_billing SET voucher_pdf_url=$2, updated_at=NOW() WHERE id=$1`,
+            [billingId, gen.publicUrl]
+          );
+          ins.rows[0].voucher_pdf_url = gen.publicUrl;
+        }
+      } catch (pdfErr) {
+        // PDF generation must not fail voucher creation; log and continue.
+        console.error("createVoucherForCase: PDF generation failed (voucher still created):", pdfErr);
+      }
+    }
 
     return res.json({ ok: true, billing: ins.rows[0] });
   } catch (e) {
