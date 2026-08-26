@@ -155,10 +155,10 @@ export default function App() {
 
           <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
-          {/* ✅ Meet Advocates */}
+          {/* Meet Advocates */}
           <Route path="/meet-advocates" element={<MeetOurAdvocatesPage />} />
 
-          {/* ✅ NEW: How it Works */}
+          {/* NEW: How it Works */}
           <Route path="/how-it-works" element={<HowItWorksPage />} />
 
           {/* Legal Assistant */}

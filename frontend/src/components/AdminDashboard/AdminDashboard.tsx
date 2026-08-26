@@ -1,3 +1,5 @@
+import { formatStatus } from "../common/formatStatus";
+import { isErrorMessage } from "../common/messageTone";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
@@ -806,7 +808,10 @@ export default function AdminDashboard() {
 
     const assignments =
       assignRes.ok && Array.isArray(assignRes.data?.queue)
-        ? assignRes.data.queue.length
+        ? assignRes.data.queue.filter(
+            (item: { status?: string }) =>
+              String(item.status || "").toUpperCase() !== "ADVOCATE_ASSIGNED"
+          ).length
         : 0;
     const meetings =
       meetingsRes.ok && Array.isArray(meetingsRes.data?.meetings)
@@ -910,7 +915,7 @@ export default function AdminDashboard() {
   }, [tab]);
 
   useEffect(() => {
-    if (tab !== "overview") return;
+    if (tab !== "overview" && tab !== "meetings" && tab !== "contracts" && tab !== "assignments") return;
     loadWorkflowCounts().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
@@ -954,11 +959,11 @@ export default function AdminDashboard() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Update failed");
 
-      setMsg("✅ Client updated");
+      setMsg("Client updated");
       setEditClient(null);
       await refreshAll();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Update failed"}`);
+      setMsg(`${e?.message || "Update failed"}`);
     } finally {
       setLoading(false);
     }
@@ -987,10 +992,10 @@ export default function AdminDashboard() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Delete failed");
 
-      setMsg("✅ Client deleted");
+      setMsg("Client deleted");
       await refreshAll();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Delete failed"}`);
+      setMsg(`${e?.message || "Delete failed"}`);
     } finally {
       setLoading(false);
     }
@@ -1030,11 +1035,11 @@ export default function AdminDashboard() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Update failed");
 
-      setMsg("✅ Advocate updated");
+      setMsg("Advocate updated");
       setEditAdvocate(null);
       await refreshAll();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Update failed"}`);
+      setMsg(`${e?.message || "Update failed"}`);
     } finally {
       setLoading(false);
     }
@@ -1063,10 +1068,10 @@ export default function AdminDashboard() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Delete failed");
 
-      setMsg("✅ Advocate deleted");
+      setMsg("Advocate deleted");
       await refreshAll();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Delete failed"}`);
+      setMsg(`${e?.message || "Delete failed"}`);
     } finally {
       setLoading(false);
     }
@@ -1097,14 +1102,14 @@ export default function AdminDashboard() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to approve contract");
-      setMsg("✅ Contract approved and case activated");
+      setMsg("Contract approved and case activated");
       await loadPendingContracts();
       if (selectedContractCaseId === caseId) {
         setSelectedContractCaseId(null);
         setContractDetails(null);
       }
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to approve contract"}`);
+      setMsg(`${e?.message || "Failed to approve contract"}`);
     } finally {
       setContractBusy(false);
       setContractAction(null);
@@ -1136,13 +1141,13 @@ export default function AdminDashboard() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to reject contract");
-      setMsg("✅ Contract sent back for revision");
+      setMsg("Contract sent back for revision");
       await loadPendingContracts();
       if (selectedContractCaseId === caseId) {
         await loadContractDetails(caseId).catch(() => setContractDetails(null));
       }
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to reject contract"}`);
+      setMsg(`${e?.message || "Failed to reject contract"}`);
     } finally {
       setContractBusy(false);
       setContractAction(null);
@@ -1154,12 +1159,12 @@ export default function AdminDashboard() {
       const caseId = Number(voucherCaseId || 0);
       const normalizedAmount = String(voucherAmountInputRef.current?.value || "").replace(/,/g, "").trim();
       const amount = Number(normalizedAmount);
-      if (!caseId || !amount) {
-        setMsg("❌ Active case and amount are required");
+      if (!caseId) {
+        setMsg("Select an active case to create a voucher.");
         return;
       }
       if (!Number.isFinite(amount) || amount <= 0) {
-        setMsg("❌ Enter a valid amount");
+        setMsg("Enter a valid amount (numbers only, e.g. 15000)");
         return;
       }
 
@@ -1183,11 +1188,11 @@ export default function AdminDashboard() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to create voucher");
 
-      setMsg("✅ Voucher created");
+      setMsg("Voucher created");
       await Promise.all([loadAllBilling(), loadVoucherCaseOptions()]);
       if (voucherAmountInputRef.current) voucherAmountInputRef.current.value = "";
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to create voucher"}`);
+      setMsg(`${e?.message || "Failed to create voucher"}`);
     } finally {
       setVoucherBusy(false);
       setVoucherAction(null);
@@ -1205,10 +1210,10 @@ export default function AdminDashboard() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to send voucher");
-      setMsg("✅ Voucher issued to client");
+      setMsg("Voucher issued to client");
       await Promise.all([loadAllBilling(), loadVoucherCaseOptions()]);
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to send voucher"}`);
+      setMsg(`${e?.message || "Failed to send voucher"}`);
     } finally {
       setVoucherBusy(false);
       setVoucherAction(null);
@@ -1226,10 +1231,10 @@ export default function AdminDashboard() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to verify proof");
-      setMsg("✅ Payment verified");
+      setMsg("Payment verified");
       await Promise.all([loadPendingPaymentProofs(), loadAllBilling(), loadVoucherCaseOptions()]);
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to verify proof"}`);
+      setMsg(`${e?.message || "Failed to verify proof"}`);
     } finally {
       setVoucherBusy(false);
       setVoucherAction(null);
@@ -1260,7 +1265,7 @@ export default function AdminDashboard() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to reject proof");
-      setMsg("✅ Payment proof rejected");
+      setMsg("Payment proof rejected");
       await Promise.all([loadPendingPaymentProofs(), loadAllBilling(), loadVoucherCaseOptions()]);
       if (caseId) {
         await fetch(`${API_BASE_URL}/api/admin/client-access/billing/cases/${caseId}/manual-payment-status`, {
@@ -1270,7 +1275,7 @@ export default function AdminDashboard() {
         }).catch(() => {});
       }
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to reject proof"}`);
+      setMsg(`${e?.message || "Failed to reject proof"}`);
     } finally {
       setVoucherBusy(false);
       setVoucherAction(null);
@@ -1280,7 +1285,7 @@ export default function AdminDashboard() {
   const manualMarkCasePaid = async () => {
     const caseId = Number(voucherCaseId || 0);
     if (!caseId) {
-      setMsg("❌ Case ID is required for manual override");
+      setMsg("Case ID is required for manual override");
       return;
     }
     const note = await prompt({
@@ -1304,10 +1309,10 @@ export default function AdminDashboard() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to set manual payment status");
-      setMsg("✅ Case payment manually marked as fully paid");
+      setMsg("Case payment manually marked as fully paid");
       await loadVoucherCaseOptions();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Failed to set manual payment status"}`);
+      setMsg(`${e?.message || "Failed to set manual payment status"}`);
     } finally {
       setVoucherBusy(false);
       setVoucherAction(null);
@@ -1666,11 +1671,9 @@ export default function AdminDashboard() {
               <div
                 className={cn(
                   "rounded-xl border px-4 py-3 text-sm font-semibold",
-                  msg.includes("✅")
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                    : msg.includes("❌")
+                  isErrorMessage(msg)
                     ? "bg-rose-50 border-rose-200 text-rose-900"
-                    : "bg-amber-50 border-amber-200 text-amber-900"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-900"
                 )}
               >
                 {msg}
@@ -2041,8 +2044,12 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* ✅ MEETINGS (render) */}
-            {tab === "meetings" && <AdminCaseDiscussion />}
+            {/* MEETINGS (render) */}
+            {tab === "meetings" && (
+              <AdminCaseDiscussion
+                onActionComplete={() => loadWorkflowCounts().catch(() => {})}
+              />
+            )}
 
             {tab === "assignments" && <AssignmentQueuePanel />}
 
@@ -2752,7 +2759,7 @@ export default function AdminDashboard() {
                         Case #{selectedVoucherCase.case_id} • Client #{selectedVoucherCase.client_user_id} ({selectedVoucherCase.client_name || "—"})
                       </div>
                       <div className="mt-1">
-                        Status: {selectedVoucherCase.status} • Paid: Rs. {Number(selectedVoucherCase.payment_verified_total || 0).toLocaleString()} / Rs. {Number(selectedVoucherCase.payment_required_total || 0).toLocaleString()}
+                        Status: {formatStatus(selectedVoucherCase.status)} • Paid: Rs. {Number(selectedVoucherCase.payment_verified_total || 0).toLocaleString()} / Rs. {Number(selectedVoucherCase.payment_required_total || 0).toLocaleString()}
                       </div>
                     </div>
                   ) : null}
@@ -2761,8 +2768,18 @@ export default function AdminDashboard() {
                       <input type="checkbox" checked={voucherInstallment} onChange={(e) => setVoucherInstallment(e.target.checked)} />
                       Installment voucher
                     </label>
-                    <PrimaryBtn onClick={createVoucher} disabled={voucherBusy}>
-                      {voucherBusy && voucherAction === "create" ? "Creating..." : "Create Voucher"}
+                    <PrimaryBtn
+                      onClick={createVoucher}
+                      disabled={
+                        voucherBusy ||
+                        (voucherCaseOptions.length === 0 && !voucherCaseId)
+                      }
+                    >
+                      {voucherBusy && voucherAction === "create"
+                        ? "Creating..."
+                        : voucherCaseOptions.length === 0 && !voucherCaseId
+                        ? "Loading cases..."
+                        : "Create Voucher"}
                     </PrimaryBtn>
                     <GhostBtn onClick={manualMarkCasePaid} disabled={voucherBusy || !voucherCaseId}>
                       {voucherBusy && voucherAction === "override" ? "Updating..." : "Manual Mark Case Paid"}
@@ -2780,25 +2797,47 @@ export default function AdminDashboard() {
                           <div key={b.id} className="rounded-xl border border-slate-200 p-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="text-sm font-bold text-slate-900">#{b.id} {b.title}</div>
-                              <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{b.status}</span>
+                              <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{formatStatus(b.status)}</span>
                             </div>
                             <div className="text-xs text-slate-600 mt-1">
                               Client #{b.user_id} • Case #{b.case_id || "—"} • Rs. {Number(b.amount || 0).toLocaleString()}
                             </div>
                             <div className="mt-2 flex items-center gap-2">
-                              <GhostBtn onClick={() => sendVoucher(b.id)} disabled={voucherBusy} className="px-3 py-1.5">
-                                {voucherBusy && voucherAction === "send" ? "Sending..." : "Issue/Send"}
-                              </GhostBtn>
-                              {b.voucher_pdf_url ? (
-                                <a
-                                  href={b.voucher_pdf_url.startsWith("http") ? b.voucher_pdf_url : `${API_BASE_URL}${b.voucher_pdf_url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-xs font-semibold text-[#004aad]"
-                                >
-                                  Open PDF
-                                </a>
-                              ) : null}
+                              {(() => {
+                                const vs = String(b.status || "").toUpperCase();
+                                const isPaid = vs === "VERIFIED" || vs === "PAID_VERIFIED" || vs === "FULLY_PAID";
+                                const isSent = vs === "SENT" || vs === "PROOF_UPLOADED" || vs === "PAYMENT_PROOF_UPLOADED" || vs === "PAYMENT_REJECTED" || vs === "ISSUED_PENDING_PAYMENT";
+                                if (isPaid) {
+                                  // fully paid — view only
+                                  return b.voucher_pdf_url ? (
+                                    <a
+                                      href={b.voucher_pdf_url.startsWith("http") ? b.voucher_pdf_url : `${API_BASE_URL}${b.voucher_pdf_url}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-[#004aad]"
+                                    >
+                                      View
+                                    </a>
+                                  ) : null;
+                                }
+                                return (
+                                  <>
+                                    <GhostBtn onClick={() => sendVoucher(b.id)} disabled={voucherBusy} className="px-3 py-1.5">
+                                      {voucherBusy && voucherAction === "send" ? "Sending..." : isSent ? "Resend" : "Issue/Send"}
+                                    </GhostBtn>
+                                    {b.voucher_pdf_url ? (
+                                      <a
+                                        href={b.voucher_pdf_url.startsWith("http") ? b.voucher_pdf_url : `${API_BASE_URL}${b.voucher_pdf_url}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs font-semibold text-[#004aad]"
+                                      >
+                                        Open PDF
+                                      </a>
+                                    ) : null}
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         ))
@@ -2927,7 +2966,7 @@ export default function AdminDashboard() {
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                           <div className="text-lg font-bold text-slate-900">{contractDetails.title || `Contract #${contractDetails.id}`}</div>
-                          <div className="text-xs text-slate-500 mt-1">Status: {contractDetails.status}</div>
+                          <div className="text-xs text-slate-500 mt-1">Status: {formatStatus(contractDetails.status)}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -2949,43 +2988,42 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      <div className="grid lg:grid-cols-2 gap-4">
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap max-h-[420px] overflow-auto">
-                          {contractDetails.contractText}
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-4 max-h-[420px] overflow-auto">
-                          <div className="text-sm font-bold text-slate-900">Attachments (Reference)</div>
-                          <div className="text-xs text-slate-500 mt-1">Canonical contract text on the left is the signed source of truth.</div>
-                          <div className="mt-3 space-y-2">
-                            {(contractDetails.attachments || []).length === 0 ? (
-                              <div className="text-sm text-slate-600">No attachments uploaded.</div>
-                            ) : (
-                              (contractDetails.attachments || []).map((a) => (
-                                <a
-                                  key={a.id}
-                                  href={`${API_BASE_URL}/uploads/contracts/${a.file_path}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block rounded-xl border border-slate-200 p-3 hover:bg-slate-50"
-                                >
-                                  <div className="text-sm font-semibold text-slate-900 truncate">{a.file_name}</div>
-                                  <div className="text-xs text-slate-500 mt-1">{a.mime_type}</div>
-                                </a>
-                              ))
-                            )}
-                          </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap min-h-[240px] max-h-[520px] overflow-auto">
+                        {contractDetails.contractText}
+                      </div>
 
-                          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-xs font-semibold text-slate-700">Artifact Evidence</div>
-                            {contractDetails.artifact ? (
-                              <div className="mt-2 space-y-1 text-xs text-slate-600 break-all">
-                                <div>Hash: {contractDetails.artifact.canonical_text_sha256}</div>
-                                <div>Generated: {new Date(contractDetails.artifact.generated_at).toLocaleString()}</div>
-                              </div>
-                            ) : (
-                              <div className="mt-2 text-xs text-rose-700">No artifact found for this version.</div>
-                            )}
-                          </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="text-sm font-bold text-slate-900">Attachments (Reference)</div>
+                        <div className="text-xs text-slate-500 mt-1">Canonical contract text above is the signed source of truth.</div>
+                        <div className="mt-3 space-y-2">
+                          {(contractDetails.attachments || []).length === 0 ? (
+                            <div className="text-sm text-slate-600">No attachments uploaded.</div>
+                          ) : (
+                            (contractDetails.attachments || []).map((a) => (
+                              <a
+                                key={a.id}
+                                href={`${API_BASE_URL}/uploads/contracts/${a.file_path}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block rounded-xl border border-slate-200 p-3 hover:bg-slate-50"
+                              >
+                                <div className="text-sm font-semibold text-slate-900 truncate">{a.file_name}</div>
+                                <div className="text-xs text-slate-500 mt-1">{a.mime_type}</div>
+                              </a>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="text-xs font-semibold text-slate-700">Artifact Evidence</div>
+                          {contractDetails.artifact ? (
+                            <div className="mt-2 space-y-1 text-xs text-slate-600 break-all">
+                              <div>Hash: {contractDetails.artifact.canonical_text_sha256}</div>
+                              <div>Generated: {new Date(contractDetails.artifact.generated_at).toLocaleString()}</div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 text-xs text-rose-700">No artifact found for this version.</div>
+                          )}
                         </div>
                       </div>
 

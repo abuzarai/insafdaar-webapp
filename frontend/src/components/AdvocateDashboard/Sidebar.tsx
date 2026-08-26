@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import UserAvatar from "../common/UserAvatar";
 import {
   Menu,
   X,
@@ -39,6 +40,30 @@ export default function Sidebar({ active, setActive }: SidebarProps) {
 
   const [assignedCount, setAssignedCount] = useState<number>(0);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [profileInfo, setProfileInfo] = useState<{
+    name: string;
+    practiceAreas: string[];
+    experienceYears: number;
+  } | null>(null);
+
+  const fetchProfileInfo = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/advocate/dashboard/profile/`, {
+        method: "GET",
+        headers: authHeaders(),
+      });
+      const data = await safeJson<any>(res);
+      if (!res.ok) return;
+      const p = data?.profile || data || {};
+      setProfileInfo({
+        name: p.name || "Advocate",
+        practiceAreas: Array.isArray(p.practiceAreas) ? p.practiceAreas : [],
+        experienceYears: Number(p.experienceYears) || 0,
+      });
+    } catch {
+      // ignore — sidebar falls back to generic labels
+    }
+  };
 
   const fetchAssignedCount = async () => {
     try {
@@ -72,6 +97,7 @@ export default function Sidebar({ active, setActive }: SidebarProps) {
   useEffect(() => {
     fetchAssignedCount();
     fetchUnreadNotifCount();
+    fetchProfileInfo();
 
     const t = setInterval(() => {
       fetchAssignedCount();
@@ -138,16 +164,25 @@ export default function Sidebar({ active, setActive }: SidebarProps) {
               setIsOpen(false);
             }}
           >
-            <img
-              src="https://i.pravatar.cc/100"
-              alt="Advocate"
-              className="w-20 h-20 rounded-full border-2 border-[#f5b301] hover:scale-105 transition-transform"
+            <UserAvatar
+              name={profileInfo?.name || "Advocate"}
+              role="advocate"
+              size={80}
+              className="border-2 border-[#f5b301] hover:scale-105 transition-transform"
             />
             <h2 className="text-lg font-bold mt-3 hover:text-[#f5b301] transition-colors">
-              Adv. Ayesha Khan
+              {profileInfo?.name ? `Adv. ${profileInfo.name}` : "Advocate"}
             </h2>
-            <p className="text-gray-400 text-sm">Civil & Family Law</p>
-            <p className="text-xs text-gray-500 mt-1">10+ Years Experience</p>
+            <p className="text-gray-400 text-sm">
+              {(profileInfo?.practiceAreas?.length ?? 0) > 0
+                ? profileInfo!.practiceAreas.slice(0, 2).join(", ")
+                : "Civil & Family Law"}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {(profileInfo?.experienceYears ?? 0) > 0
+                ? `${profileInfo!.experienceYears}+ Years Experience`
+                : "Verified Advocate"}
+            </p>
 
             <button
               onClick={(e) => {

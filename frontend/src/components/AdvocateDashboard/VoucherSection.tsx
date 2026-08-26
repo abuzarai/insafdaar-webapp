@@ -1,3 +1,4 @@
+import { formatStatus } from "../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../../config";
 import { RefreshCw, Receipt, BadgeCheck, Clock3 } from "lucide-react";
@@ -142,9 +143,9 @@ export default function VoucherSection() {
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-xs text-slate-500">Payment Status</div>
-          <div className="text-lg font-bold text-slate-900 mt-1">{payment?.payment_status || "UNPAID"}</div>
+          <div className="text-lg font-bold text-slate-900 mt-1">{formatStatus(payment?.payment_status) || "Unpaid"}</div>
           {payment?.payment_manual_override_status ? (
-            <div className="text-xs text-amber-700 mt-1">Manual override: {payment.payment_manual_override_status}</div>
+            <div className="text-xs text-amber-700 mt-1">Manual override: {formatStatus(payment.payment_manual_override_status)}</div>
           ) : null}
         </div>
       </div>
@@ -165,7 +166,7 @@ export default function VoucherSection() {
                   <div>
                     <div className="text-sm font-semibold text-slate-900">#{v.id} - {v.title}</div>
                     <div className="text-xs text-slate-600 mt-1">
-                      {money(v.amount)} • Due: {v.due_date ? new Date(v.due_date).toLocaleDateString() : "—"} • Status: {v.status}
+                      {money(v.amount)} • Due: {v.due_date ? new Date(v.due_date).toLocaleDateString() : "—"} • Status: {formatStatus(v.status)}
                     </div>
                     {v.rejection_note ? <div className="text-xs text-rose-700 mt-1">Reason: {v.rejection_note}</div> : null}
                   </div>

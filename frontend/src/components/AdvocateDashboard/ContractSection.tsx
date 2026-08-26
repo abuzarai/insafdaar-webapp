@@ -1,6 +1,58 @@
+import { formatStatus } from "../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
-import { FileText, PenSquare, CheckCircle2, RefreshCw, Paperclip, ShieldCheck, Sparkles, Save, XCircle, Plus, Download } from "lucide-react";
+import { FileText, PenSquare, CheckCircle2, RefreshCw, Paperclip, ShieldCheck, Sparkles, Save, XCircle, Plus, Download, AlertTriangle } from "lucide-react";
 import { API_BASE_URL } from "../../config";
+
+function isQuotaError(raw: string): boolean {
+  return /429|RESOURCE_EXHAUSTED|quota|Quota|rate.?limit/i.test(raw || "");
+}
+
+function cleanErrorMessage(raw: string): string {
+  if (!raw) return "Failed to generate AI draft.";
+  const m = raw.match(/^(.*?)(?:\s*\{\s*['"]error|\.$)/s);
+  const clean = (m && m[1] ? m[1] : raw).trim();
+  return clean || "Failed to generate AI draft.";
+}
+
+function QuotaModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <h3 className="text-base font-semibold text-slate-900">Daily AI limit reached</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition">
+            <XCircle size={18} className="text-slate-700" />
+          </button>
+        </div>
+        <div className="p-5">
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-slate-700">
+                The free AI tier has a daily limit (~20 generations per day for this model), and today's
+                limit has been used up.
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600 space-y-1">
+              <div className="font-semibold text-slate-800">What you can do:</div>
+              <div>• Try again later — the limit resets daily (midnight Pacific).</div>
+              <div>• Use the AI Studio or another model with higher limits for lighter tasks.</div>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={onClose}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white text-sm font-semibold hover:bg-[#003b82] transition"
+              >
+                OK, got it
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type AssignedCase = {
   id: string;
@@ -69,7 +121,6 @@ export default function ContractSection() {
   const [contractText, setContractText] = useState("");
   const [contract, setContract] = useState<ContractPayload | null>(null);
   const [typedFullName, setTypedFullName] = useState("");
-  const [consentChecked, setConsentChecked] = useState(false);
   const [signatureNote, setSignatureNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<"refresh" | "save" | "otpRequest" | "otpVerify" | "sign" | "upload" | null>(null);
@@ -87,6 +138,7 @@ export default function ContractSection() {
   const [selectedSectionId, setSelectedSectionId] = useState("");
   const [rewriteInstruction, setRewriteInstruction] = useState("");
   const [draftNotice, setDraftNotice] = useState("");
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [aiNotes, setAiNotes] = useState("");
 
@@ -237,7 +289,12 @@ export default function ContractSection() {
       setDraftDirty(false);
       setDraftNotice("AI contract draft generated.");
     } catch (e: any) {
-      setDraftNotice(e?.message || "Failed to generate AI draft");
+      const rawMsg = e?.message || "Failed to generate AI draft";
+      if (isQuotaError(rawMsg)) {
+        setQuotaExceeded(true);
+      } else {
+        setDraftNotice(cleanErrorMessage(rawMsg));
+      }
     } finally {
       setDraftBusy(null);
     }
@@ -371,8 +428,11 @@ export default function ContractSection() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to save contract");
-      setContract((data?.contract || null) as ContractPayload | null);
-      setMsg("Contract saved. If a previous version had signatures, a new version was created.");
+      const saved = (data?.contract || null) as ContractPayload | null;
+      setContract(saved);
+      setMsg(
+        `Contract saved — v${saved?.versionNo ?? "?"} persisted. Keep editing and save again anytime.`
+      );
       setOtpCode("");
       setOtpRequestId(null);
       setOtpSessionId("");
@@ -478,7 +538,8 @@ export default function ContractSection() {
         headers: authHeaders(true),
         body: JSON.stringify({
           typedFullName,
-          consentChecked,
+          // merged checkbox covers read + understood + agree → satisfies consent
+          consentChecked: confirmedReadUnderstood,
           signatureNote: signatureNote.trim() || undefined,
           otpSessionId,
           confirmedReadUnderstood,
@@ -573,6 +634,17 @@ export default function ContractSection() {
         >
           <PenSquare size={16} /> {loading && action === "save" ? "Saving..." : "Save Contract"}
         </button>
+        {msg ? (
+          <div
+            className={`rounded-xl border px-4 py-2.5 text-sm font-medium ${
+              msg.startsWith("") || msg.includes("saved") || msg.includes("created")
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-700"
+            }`}
+          >
+            {msg}
+          </div>
+        ) : null}
       </div>
 
       {contract && (
@@ -697,6 +769,7 @@ export default function ContractSection() {
             </div>
 
             {draftNotice ? <div className="px-4 md:px-6 py-2 text-xs md:text-sm border-b border-slate-100 text-slate-700 bg-slate-50">{draftNotice}</div> : null}
+            {quotaExceeded && <QuotaModal onClose={() => setQuotaExceeded(false)} />}
 
             <div className="px-4 md:px-6 py-3 border-b border-slate-100">
               <textarea
@@ -821,7 +894,7 @@ export default function ContractSection() {
         <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-slate-900">
             <CheckCircle2 size={16} /> Signatures
-            <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{contract.status} • v{contract.versionNo}</span>
+            <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{formatStatus(contract.status)} • v{contract.versionNo}</span>
           </div>
           <div className="grid md:grid-cols-2 gap-3 text-xs">
             <div className="rounded-xl border border-slate-200 p-3">
@@ -904,12 +977,8 @@ export default function ContractSection() {
               />
 
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={consentChecked} onChange={(e) => setConsentChecked(e.target.checked)} />
-                I confirm I have read and agree to this contract.
-              </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={confirmedReadUnderstood} onChange={(e) => setConfirmedReadUnderstood(e.target.checked)} />
-                I confirm I have read and understood the contract text.
+                I confirm I have read, understood, and agree to this contract.
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={confirmedVoluntary} onChange={(e) => setConfirmedVoluntary(e.target.checked)} />
@@ -934,7 +1003,6 @@ export default function ContractSection() {
                 disabled={
                   loading ||
                   !typedFullName.trim() ||
-                  !consentChecked ||
                   !otpSessionId ||
                   !confirmedReadUnderstood ||
                   !confirmedVoluntary ||

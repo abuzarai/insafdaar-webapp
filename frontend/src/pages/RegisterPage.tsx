@@ -14,16 +14,16 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password) {
-      setMessage("⚠️ Please fill out all fields.");
+      setMessage("Please fill out all fields.");
       return;
     }
     try {
       setLoading(true);
       const res = await axios.post(`${API_BASE_URL}/api/register`, form);
       console.log(res.data);
-      setMessage("✅ Registration successful! Please log in.");
+      setMessage("Registration successful! Please log in.");
     } catch {
-      setMessage("❌ Registration failed. Please try again.");
+      setMessage("Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }

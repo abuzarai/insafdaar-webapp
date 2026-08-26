@@ -7,7 +7,6 @@ import { API_BASE_URL } from "../config";
 export default function LoginPage() {
   // role is UI-only (backend decides actual role)
   const [form, setForm] = useState({
-    role: "client",
     email: "",
     password: "",
   });
@@ -24,7 +23,7 @@ export default function LoginPage() {
     setMsg("");
 
     if (!form.email || !form.password) {
-      setMsg("⚠️ Please fill in all fields.");
+      setMsg("Please fill in all fields.");
       return;
     }
 
@@ -40,7 +39,7 @@ export default function LoginPage() {
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      setMsg(`✅ Welcome ${res.data.user?.name || ""}! Redirecting...`);
+      setMsg(`Welcome ${res.data.user?.name || ""}! Redirecting...`);
 
       setTimeout(() => {
         const roleRaw = res.data.user?.role || "CLIENT";
@@ -59,14 +58,14 @@ export default function LoginPage() {
         (serverMsg.toLowerCase().includes("verify") ||
           serverMsg.toLowerCase().includes("otp"))
       ) {
-        setMsg("⚠️ Email not verified. Redirecting to OTP...");
+        setMsg("Email not verified. Redirecting to OTP...");
         setTimeout(() => {
           navigate(`/verify-otp?email=${encodeURIComponent(form.email)}`);
         }, 900);
         return;
       }
 
-      setMsg(serverMsg ? `❌ ${serverMsg}` : "❌ Login failed. Please try again.");
+      setMsg(serverMsg ? `${serverMsg}` : "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -96,32 +95,6 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
-          {/* Role selection is UI only (backend decides role from DB) */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-200 mb-1">
-              Select Role (optional)
-            </label>
-            <select
-              name="role"
-              value={form.role}
-              onChange={update}
-              className="w-full p-2.5 rounded-lg bg-white/5 text-white border border-white/20 focus:ring-2 focus:ring-[#f5b301] outline-none transition"
-            >
-              <option value="client" className="text-black">
-                Client
-              </option>
-              <option value="advocate" className="text-black">
-                Advocate
-              </option>
-              <option value="admin" className="text-black">
-                Admin
-              </option>
-            </select>
-            <p className="text-xs text-gray-400 mt-2">
-              Note: Your actual role is determined by the server after login.
-            </p>
-          </div>
-
           <input
             type="email"
             name="email"

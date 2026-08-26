@@ -267,7 +267,7 @@ export default function CaseDiscussion() {
       const data = await safeJson<any>(res);
       if (!res.ok) throw new Error(data?.error || data?.message || "Failed to send meeting request.");
 
-      setToast({ msg: "✅ Request sent to admin. Please wait for approval.", type: "ok" });
+      setToast({ msg: "Request sent to admin. Please wait for approval.", type: "ok" });
       setShowForm(false);
       setAgenda("");
 
@@ -310,7 +310,7 @@ export default function CaseDiscussion() {
         </Pill>
       </div>
 
-      {/* ✅ Approved meetings list */}
+      {/* Approved meetings list */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>

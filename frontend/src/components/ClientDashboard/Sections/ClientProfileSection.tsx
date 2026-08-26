@@ -1,6 +1,8 @@
+import { formatStatus } from "../../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
+import UserAvatar from "../../common/UserAvatar";
 import {
   BadgeCheck,
   ShieldCheck,
@@ -300,6 +302,12 @@ export default function ClientProfileSection({
     }
   };
 
+  // Which required docs are already uploaded? (drives chips + banner)
+  const uploadedTypes = new Set((docs || []).map((d) => d.doc_type));
+  const requiredDocTypes = ["CNIC_FRONT", "CNIC_BACK", "ADDRESS_PROOF"] as const;
+  const missingDocs = requiredDocTypes.filter((t) => !uploadedTypes.has(t));
+  const allDocsUploaded = missingDocs.length === 0;
+
   useEffect(() => {
     loadProfile();
     loadDocs();
@@ -329,7 +337,7 @@ export default function ClientProfileSection({
         { headers: authHeaders() }
       );
 
-      setMsg("✅ Profile updated successfully");
+      setMsg("Profile updated successfully");
       await loadProfile();
       onProfileUpdated?.();
     } catch (e: any) {
@@ -353,7 +361,7 @@ export default function ClientProfileSection({
       });
 
       setForm((p) => ({ ...p, avatarUrl: res.data?.avatarUrl || "" }));
-      setMsg("✅ Profile photo updated");
+      setMsg("Profile photo updated");
       onProfileUpdated?.();
     } catch (e: any) {
       setMsg("Avatar upload failed.");
@@ -372,13 +380,20 @@ export default function ClientProfileSection({
       fd.append("docType", docType);
       fd.append("file", file);
 
-      await axios.post(`${CLIENT_BASE}/documents`, fd, {
+      const res = await axios.post(`${CLIENT_BASE}/documents`, fd, {
         headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
       });
 
-      setMsg(`✅ ${docType.replace("_", " ")} uploaded`);
+      setMsg(`${docType.replace("_", " ")} uploaded`);
       await loadDocs();
-      await loadProfile();
+      // ✅ Update ONLY the doc-gate flag from the upload response — do NOT
+      // refetch+overwrite the form here (it wiped unsaved field edits and
+      // looked like a page refresh). The sidebar gate refreshes via callback.
+      const completed = res.data?.documentsCompleted;
+      if (typeof completed === "boolean") {
+        setForm((p) => ({ ...p, documentsCompleted: completed }));
+      }
+      onProfileUpdated?.();
     } catch (e: any) {
       setMsg("Upload failed.");
     } finally {
@@ -388,9 +403,7 @@ export default function ClientProfileSection({
 
   const avatarSrc = form.avatarUrl?.trim()
     ? `${API_BASE_URL}${form.avatarUrl}`
-    : `https://ui-avatars.com/api/?background=004aad&color=fff&name=${encodeURIComponent(
-        form.fullName || "Client"
-      )}`;
+    : null;
 
   if (loading)
     return (
@@ -432,7 +445,7 @@ export default function ClientProfileSection({
                             : "text-amber-600 font-semibold"
                         }
                       >
-                        {form.documentsCompleted ? "Complete ✅" : "Pending"}
+                        {form.documentsCompleted ? "Complete " : "Pending"}
                       </span>
                     </span>
                   </div>
@@ -496,7 +509,7 @@ export default function ClientProfileSection({
                           <div className="font-medium">
                             {String(d.doc_type || "").replace("_", " ")}
                           </div>
-                          <div className="text-xs text-slate-500">{d.status}</div>
+                          <div className="text-xs text-slate-500">{formatStatus(d.status)}</div>
                         </div>
                         <a
                           href={`${API_BASE_URL}${d.file_url}`}
@@ -620,31 +633,58 @@ export default function ClientProfileSection({
 
               <div className="p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200">
                 <h4 className="font-medium mb-3">Upload Required Documents</h4>
+                {allDocsUploaded ? (
+                  <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">
+                    ✓ All required documents uploaded — you can start a case.
+                  </p>
+                ) : (
+                  <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                    Still missing: {missingDocs.map((m) => m.replace("_", " ")).join(", ")} —
+                    required before you can start a case.
+                  </p>
+                )}
                 <div className="grid gap-3">
-                  {(["CNIC_FRONT", "CNIC_BACK", "ADDRESS_PROOF"] as const).map((t) => (
-                    <label
-                      key={t}
-                      className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer hover:bg-slate-50
-                        ${uploading === t ? "opacity-60 bg-slate-100" : ""}`}
-                    >
-                      <div>
-                        <div className="font-medium">{t.replace("_", " ")}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">PNG, JPG, PDF</div>
-                      </div>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept=".png,.jpg,.jpeg,.pdf"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) uploadDoc(t, f);
-                        }}
-                      />
-                      <div className="text-[#004aad] font-medium">
-                        {uploading === t ? "Uploading..." : "Upload"}
-                      </div>
-                    </label>
-                  ))}
+                  {requiredDocTypes.map((t) => {
+                    const uploaded = uploadedTypes.has(t);
+                    return (
+                      <label
+                        key={t}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer hover:bg-slate-50
+                          ${uploading === t ? "opacity-60 bg-slate-100" : ""}
+                          ${uploaded ? "border-emerald-300 bg-emerald-50/40" : "border-red-200 bg-red-50/30"}`}
+                      >
+                        <div>
+                          <div className="font-medium flex items-center gap-2">
+                            {t.replace("_", " ")}
+                            {uploaded ? (
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                                ✓ Uploaded
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">
+                                Missing
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {uploaded ? "Tap Replace to change the file" : "PNG, JPG, PDF"}
+                          </div>
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".png,.jpg,.jpeg,.pdf"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) uploadDoc(t, f);
+                          }}
+                        />
+                        <div className="text-[#004aad] font-medium">
+                          {uploading === t ? "Uploading..." : uploaded ? "Replace" : "Upload"}
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
                 <p className="text-xs text-slate-500 mt-4">
                   Documents are manually verified by admin before you can start a case.
@@ -685,11 +725,20 @@ export default function ClientProfileSection({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <img
-                  src={avatarSrc}
-                  alt="Profile"
-                  className="w-20 h-20 rounded-full border-4 border-[#004aad]/20 object-cover"
-                />
+                {avatarSrc ? (
+                  <img
+                    src={avatarSrc}
+                    alt="Profile"
+                    className="w-20 h-20 rounded-full border-4 border-[#004aad]/20 object-cover"
+                  />
+                ) : (
+                  <UserAvatar
+                    name={form.fullName}
+                    role="client"
+                    size={80}
+                    className="border-4 border-[#004aad]/20"
+                  />
+                )}
                 {!viewMode && (
                   <label className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-white border-2 border-[#004aad] flex items-center justify-center cursor-pointer hover:bg-[#004aad]/10 transition">
                     <Camera size={16} className="text-[#004aad]" />
@@ -829,11 +878,20 @@ export default function ClientProfileSection({
           <div className="md:col-span-1">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center sticky top-6">
               <div className="relative inline-block">
-                <img
-                  src={avatarSrc}
-                  alt="Profile"
-                  className="w-32 h-32 rounded-full border-4 border-[#004aad]/20 object-cover mx-auto"
-                />
+                {avatarSrc ? (
+                  <img
+                    src={avatarSrc}
+                    alt="Profile"
+                    className="w-32 h-32 rounded-full border-4 border-[#004aad]/20 object-cover mx-auto"
+                  />
+                ) : (
+                  <UserAvatar
+                    name={form.fullName}
+                    role="client"
+                    size={128}
+                    className="border-4 border-[#004aad]/20 mx-auto"
+                  />
+                )}
                 <label className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-white border-2 border-[#004aad] flex items-center justify-center cursor-pointer hover:bg-[#004aad]/10 transition shadow-sm">
                   <Camera size={18} className="text-[#004aad]" />
                   <input
@@ -970,29 +1028,51 @@ export default function ClientProfileSection({
 
                   <div className="mt-4">
                     <h4 className="text-sm font-medium mb-3">Upload Documents</h4>
+                    {!allDocsUploaded && (
+                      <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                        Still missing: {missingDocs.map((m) => m.replace("_", " ")).join(", ")}
+                      </p>
+                    )}
                     <div className="grid gap-3">
-                      {(["CNIC_FRONT", "CNIC_BACK", "ADDRESS_PROOF"] as const).map((t) => (
-                        <label
-                          key={t}
-                          className={`p-4 rounded-xl border transition-all cursor-pointer hover:border-[#004aad]/50 hover:bg-[#004aad]/5
-                            ${uploading === t ? "opacity-60 bg-slate-100" : ""}`}
-                        >
-                          <div className="font-medium">{t.replace("_", " ")}</div>
-                          <div className="text-xs text-slate-500 mt-1">PNG, JPG, PDF</div>
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".png,.jpg,.jpeg,.pdf"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) uploadDoc(t, f);
-                            }}
-                          />
-                          <div className="mt-2 text-xs text-[#004aad] font-medium">
-                            {uploading === t ? "Uploading..." : "Click to upload"}
-                          </div>
-                        </label>
-                      ))}
+                      {requiredDocTypes.map((t) => {
+                        const uploaded = uploadedTypes.has(t);
+                        return (
+                          <label
+                            key={t}
+                            className={`p-4 rounded-xl border transition-all cursor-pointer hover:border-[#004aad]/50 hover:bg-[#004aad]/5
+                              ${uploading === t ? "opacity-60 bg-slate-100" : ""}
+                              ${uploaded ? "border-emerald-300 bg-emerald-50/40" : "border-red-200 bg-red-50/30"}`}
+                          >
+                            <div className="font-medium flex items-center gap-2">
+                              {t.replace("_", " ")}
+                              {uploaded ? (
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                                  ✓ Uploaded
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">
+                                  Missing
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              {uploaded ? "Tap to replace the file" : "PNG, JPG, PDF"}
+                            </div>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".png,.jpg,.jpeg,.pdf"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) uploadDoc(t, f);
+                              }}
+                            />
+                            <div className="mt-2 text-xs text-[#004aad] font-medium">
+                              {uploading === t ? "Uploading..." : uploaded ? "Replace" : "Click to upload"}
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1015,7 +1095,7 @@ export default function ClientProfileSection({
                         <div className="font-medium">
                           {String(d.doc_type || "").replace("_", " ")}
                         </div>
-                        <div className="text-xs text-slate-500">{d.status}</div>
+                        <div className="text-xs text-slate-500">{formatStatus(d.status)}</div>
                       </div>
                       <a
                         href={`${API_BASE_URL}${d.file_url}`}

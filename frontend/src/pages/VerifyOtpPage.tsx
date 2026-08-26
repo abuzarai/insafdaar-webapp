@@ -21,11 +21,11 @@ export default function VerifyOtpPage() {
     setMsg("");
 
     if (!email) {
-      setMsg("⚠️ Email not found. Please register again.");
+      setMsg("Email not found. Please register again.");
       return;
     }
     if (!otp) {
-      setMsg("⚠️ Please enter OTP.");
+      setMsg("Please enter OTP.");
       return;
     }
 
@@ -37,11 +37,11 @@ export default function VerifyOtpPage() {
       await axios.post(`${API_BASE_URL}/api/auth/verify-otp`, { email, otp });
 
       localStorage.removeItem("pending_email");
-      setMsg("✅ Email verified! Redirecting to login...");
+      setMsg("Email verified! Redirecting to login...");
 
       setTimeout(() => navigate("/login"), 900);
     } catch (err: any) {
-      setMsg(err?.response?.data?.error || "❌ OTP verification failed.");
+      setMsg(err?.response?.data?.error || "OTP verification failed.");
     } finally {
       setLoading(false);
     }

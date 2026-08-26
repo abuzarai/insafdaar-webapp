@@ -1,3 +1,4 @@
+import { formatStatus, formatAiEnum } from "../../common/formatStatus";
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
@@ -180,6 +181,7 @@ export default function StartCaseSection() {
   const [matchingCandidates, setMatchingCandidates] = useState<MatchCandidate[]>([]);
   const [selectedAdvocateId, setSelectedAdvocateId] = useState<number | null>(null);
   const [selectionBusy, setSelectionBusy] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [interviewSessionId, setInterviewSessionId] = useState<string>("");
   const [matchingCaseMeta, setMatchingCaseMeta] = useState<MatchingCaseMeta | null>(null);
   const [latestInterview, setLatestInterview] = useState<PersistedInterviewResult | null>(null);
@@ -260,6 +262,7 @@ export default function StartCaseSection() {
       const candidates = Array.isArray(res.data?.candidates) ? res.data.candidates : [];
       setMatchingCandidates(candidates);
       setSelectedAdvocateId(res.data?.selectedAdvocateId ? Number(res.data.selectedAdvocateId) : null);
+      setSubmitted(res.data?.selectedAdvocateId ? true : false);
       setMatchingCaseMeta({
         case_title_short: res.data?.case_title_short || null,
         case_display_label: res.data?.case_display_label || null,
@@ -270,7 +273,7 @@ export default function StartCaseSection() {
       setMatchingCaseMeta(null);
       setLatestInterview(null);
       if (e?.response?.data?.error) {
-        setMsg(`⚠️ ${e.response.data.error}`);
+        setMsg(`${e.response.data.error}`);
       }
     } finally {
       setMatchingBusy(false);
@@ -289,10 +292,11 @@ export default function StartCaseSection() {
         },
         { headers: authHeaders() }
       );
-      setMsg("✅ Preferred advocate selected. Waiting for admin approval.");
+      setMsg("Preferred advocate selected. Waiting for admin approval.");
+      setSubmitted(true);
       await loadMatching(caseId);
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Failed to select advocate.");
+      setMsg(e?.response?.data?.error || "Failed to select advocate.");
     } finally {
       setSelectionBusy(false);
     }
@@ -439,7 +443,7 @@ export default function StartCaseSection() {
 
   const startNewAiInterview = async () => {
     if (!isAiMode) {
-      setMsg("⚠️ AI interview is available only for English/Urdu.");
+      setMsg("AI interview is available only for English/Urdu.");
       return;
     }
 
@@ -448,7 +452,7 @@ export default function StartCaseSection() {
     try {
       const id = caseId || (await ensureDraftCase());
       if (!id) {
-        setMsg("❌ Could not resolve case. Please refresh and try again.");
+        setMsg("Could not resolve case. Please refresh and try again.");
         return;
       }
 
@@ -461,9 +465,9 @@ export default function StartCaseSection() {
       setInterviewSessionId("");
       setInterviewStarted(true);
       setInterviewPanelVersion((v) => v + 1);
-      setMsg("✅ New AI interview session is ready.");
+      setMsg("New AI interview session is ready.");
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Could not start a new interview session.");
+      setMsg(e?.response?.data?.error || "Could not start a new interview session.");
     } finally {
       setBusy(false);
     }
@@ -471,7 +475,7 @@ export default function StartCaseSection() {
 
   const onConfirmLanguage = async () => {
     setMsg("");
-    if (!selectedLanguage) return setMsg("⚠️ Please select a language first.");
+    if (!selectedLanguage) return setMsg("Please select a language first.");
 
     try {
       setBusy(true);
@@ -481,7 +485,7 @@ export default function StartCaseSection() {
       });
 
       if (!id) {
-        setMsg("❌ Could not create case draft. Please try again.");
+        setMsg("Could not create case draft. Please try again.");
         return;
       }
 
@@ -498,13 +502,13 @@ export default function StartCaseSection() {
         );
         setInterviewSessionId("");
         setInterviewStarted(true);
-        setMsg("✅ AI interview ready");
+        setMsg("AI interview ready");
         return;
       }
 
-      setMsg("✅ Voice note ready → Record → Preview → Upload");
+      setMsg("Voice note ready → Record → Preview → Upload");
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Something went wrong.");
+      setMsg(e?.response?.data?.error || "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -520,9 +524,9 @@ export default function StartCaseSection() {
       });
       if (id) await refreshLists(id);
       if (id) await loadMatching(id);
-      setMsg("✅ Description saved");
+      setMsg("Description saved");
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Failed. Please try again.");
+      setMsg(e?.response?.data?.error || "Failed. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -646,14 +650,14 @@ export default function StartCaseSection() {
         streamRef.current = null;
 
         await stopAnalyser();
-        setMsg("✅ Recording finished. Preview & upload when ready.");
+        setMsg("Recording finished. Preview & upload when ready.");
       };
 
       rec.start();
       setIsRecording(true);
       setIsPaused(false);
     } catch {
-      setMsg("❌ Microphone access denied. Please allow microphone permission.");
+      setMsg("Microphone access denied. Please allow microphone permission.");
       await stopAnalyser();
     }
   };
@@ -686,7 +690,7 @@ export default function StartCaseSection() {
   };
 
   const uploadVoice = async () => {
-    if (!recordedBlob) return setMsg("⚠️ Please record something first.");
+    if (!recordedBlob) return setMsg("Please record something first.");
 
     try {
       setBusy(true);
@@ -702,7 +706,7 @@ export default function StartCaseSection() {
         headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
       });
 
-      setMsg("✅ Voice note uploaded");
+      setMsg("Voice note uploaded");
       await refreshLists(id);
       await loadMatching(id);
 
@@ -710,7 +714,7 @@ export default function StartCaseSection() {
       setAudioPreviewUrl("");
       setRecordedBlob(null);
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Upload failed. Please try again.");
+      setMsg(e?.response?.data?.error || "Upload failed. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -731,11 +735,11 @@ export default function StartCaseSection() {
         headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
       });
 
-      setMsg(`✅ ${docType.replace("_", " ")} uploaded`);
+      setMsg(`${docType.replace("_", " ")} uploaded`);
       await refreshLists(id);
       await loadMatching(id);
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Upload failed.");
+      setMsg(e?.response?.data?.error || "Upload failed.");
     } finally {
       setBusy(false);
     }
@@ -873,12 +877,12 @@ export default function StartCaseSection() {
             setInterviewSessionId(sessionId || "");
           }}
           onComplete={(result: InterviewResult) => {
-            setMsg("✅ Interview complete! Analysis saved.");
+            setMsg("Interview complete! Analysis saved.");
             console.log("Interview result:", result);
             const finalize = async () => {
               const id = caseId || (await ensureDraftCase());
               if (!id) {
-                setMsg("⚠️ Interview finished but case could not be resolved. Please refresh and try again.");
+                setMsg("Interview finished but case could not be resolved. Please refresh and try again.");
                 return;
               }
 
@@ -887,23 +891,23 @@ export default function StartCaseSection() {
 
             finalize().catch((e: any) => {
               const details = e?.response?.data?.error || e?.message || "Failed to finalize interview.";
-              setMsg(`⚠️ Interview completed but final save failed: ${details}`);
+              setMsg(`Interview completed but final save failed: ${details}`);
             });
           }}
           onError={(error: string) => {
             if (interviewSessionId) {
               setMsg(
-                `⚠️ Interview ended with issue: ${error}. Session ${interviewSessionId} may still be processing, please refresh in a few seconds.`
+                `Interview ended with issue: ${error}. Session ${interviewSessionId} may still be processing, please refresh in a few seconds.`
               );
               return;
             }
-            setMsg(`❌ Interview error: ${error}`);
+            setMsg(`Interview error: ${error}`);
           }}
         />
         </div>
       )}
 
-      {/* ✅ Voice UI */}
+      {/* Voice UI */}
       {hasLang && !isAiMode && (
         <div className="bg-white border border-slate-200 rounded-2xl shadow overflow-hidden">
           <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
@@ -1118,7 +1122,7 @@ export default function StartCaseSection() {
                   {documents.map((d) => (
                     <li key={d.id} className="border rounded-xl p-3 flex items-center justify-between text-sm">
                       <span>
-                        <b>{d.doc_type}</b> — {d.status}
+                        <b>{d.doc_type}</b> — {formatStatus(d.status)}
                       </span>
                       <a
                         className="text-[#004aad] font-semibold"
@@ -1192,10 +1196,10 @@ export default function StartCaseSection() {
                   </div>
                 ) : null}
                 <div className="mt-2 space-y-1">
-                  <div><span className="font-semibold">Legal domain:</span> {latestInterview.summary.legalDomain || "—"}</div>
+                  <div><span className="font-semibold">Legal domain:</span> {formatAiEnum("domain", latestInterview.summary.legalDomain)}</div>
                   <div><span className="font-semibold">Issue:</span> {latestInterview.summary.issueSummary || "—"}</div>
-                  <div><span className="font-semibold">Language:</span> {latestInterview.summary.primaryLanguage || "—"}</div>
-                  <div><span className="font-semibold">Urgency:</span> {latestInterview.summary.urgency || "—"}</div>
+                  <div><span className="font-semibold">Language:</span> {formatAiEnum("language", latestInterview.summary.primaryLanguage)}</div>
+                  <div><span className="font-semibold">Urgency:</span> {formatAiEnum("urgency", latestInterview.summary.urgency)}</div>
                 </div>
                 {latestInterview.transcript ? (
                   <details className="mt-2">
@@ -1221,15 +1225,27 @@ export default function StartCaseSection() {
                     <button
                       key={c.id}
                       type="button"
-                      onClick={() => setSelectedAdvocateId(Number(c.advocate_id))}
+                      onClick={() => {
+                        setSubmitted(false);
+                        setSelectedAdvocateId(Number(c.advocate_id));
+                      }}
                       className={`w-full text-left rounded-xl border p-4 transition ${
-                        isSelected ? "border-[#004aad] bg-[#004aad]/5" : "border-slate-200 hover:bg-slate-50"
+                        isSelected
+                          ? "border-[#004aad] bg-[#004aad]/5 ring-1 ring-[#004aad]/30"
+                          : "border-slate-200 hover:bg-slate-50"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                          <div className="text-sm font-bold text-slate-900">
-                            #{c.rank_position} {c.advocate_name || "Advocate"}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900">
+                              #{c.rank_position} {c.advocate_name || "Advocate"}
+                            </span>
+                            {isSelected ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#004aad] bg-[#004aad]/10 px-2 py-0.5 rounded-full">
+                                <CheckCircle2 size={12} /> Selected
+                              </span>
+                            ) : null}
                           </div>
                           <div className="text-xs text-slate-600 mt-1">
                             {c.advocate_email} • {c.city || "City —"} • Exp {c.experience_years ?? 0}y
@@ -1253,13 +1269,23 @@ export default function StartCaseSection() {
                   onClick={chooseAdvocate}
                   disabled={!selectedAdvocateId || selectionBusy}
                   className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
-                    !selectedAdvocateId || selectionBusy
+                    !selectedAdvocateId || selectionBusy || submitted
                       ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                       : "bg-[#004aad] text-white hover:bg-[#003b82]"
                   }`}
                 >
-                  {selectionBusy ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                  Select This Lawyer
+                  {selectionBusy ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : submitted ? (
+                    <CheckCircle2 size={18} />
+                  ) : (
+                    <CheckCircle2 size={18} />
+                  )}
+                  {selectionBusy
+                    ? "Submitting..."
+                    : submitted
+                    ? "Awaiting Admin Approval"
+                    : "Select This Lawyer"}
                 </button>
                 <p className="text-xs text-slate-500">
                   Your selection is sent to admin for approval. Lawyer receives case details only after admin approval.

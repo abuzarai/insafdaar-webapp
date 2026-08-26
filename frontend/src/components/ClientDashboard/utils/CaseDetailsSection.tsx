@@ -1,3 +1,4 @@
+import { formatStatus } from "../../common/formatStatus";
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import {
@@ -347,7 +348,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="text-xs text-slate-500">Payment Status</div>
             <div className={`mt-2 inline-flex px-2.5 py-1 rounded-full border text-xs font-bold ${paymentTone(paymentGate.paymentStatus)}`}>
-              {paymentGate.paymentStatus}
+              {formatStatus(paymentGate.paymentStatus)}
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -378,7 +379,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
               </div>
               {paymentGate?.manualOverrideStatus ? (
                 <div className="mt-2 text-xs text-amber-800">
-                  Manual Override: {paymentGate.manualOverrideStatus} {paymentGate.manualOverrideNote ? `• ${paymentGate.manualOverrideNote}` : ""}
+                  Manual Override: {formatStatus(paymentGate.manualOverrideStatus)} {paymentGate.manualOverrideNote ? `• ${paymentGate.manualOverrideNote}` : ""}
                 </div>
               ) : null}
               <button
@@ -423,7 +424,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                 <div className="grid md:grid-cols-2 gap-3 pt-2 text-sm">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Lifecycle Status</div>
-                    <div className="font-semibold text-slate-900 mt-1">{caseData?.status || "—"}</div>
+                    <div className="font-semibold text-slate-900 mt-1">{formatStatus(caseData?.status) || "—"}</div>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Next Meeting</div>
@@ -459,7 +460,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                   timeline.map((e) => (
                     <div key={e.id} className="rounded-xl border border-slate-200 p-3 bg-slate-50">
                       <div className="text-xs text-slate-500">{dt(e.created_at)}</div>
-                      <div className="text-sm font-semibold text-slate-900 mt-1">{e.from_status || "START"}{" -> "}{e.to_status}</div>
+                      <div className="text-sm font-semibold text-slate-900 mt-1">{formatStatus(e.from_status) || "Start"}{" → "}{formatStatus(e.to_status)}</div>
                       <div className="text-xs text-slate-600 mt-1">{e.reason || "No reason provided"}</div>
                     </div>
                   ))
@@ -477,7 +478,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                 ) : (
                   meetings.map((m) => (
                     <div key={m.id} className="rounded-xl border border-slate-200 p-3">
-                      <div className="text-xs text-slate-500">{m.status}</div>
+                      <div className="text-xs text-slate-500">{formatStatus(m.status)}</div>
                       <div className="text-sm font-semibold text-slate-900 mt-1">{dt(m.start_at)} {m.end_at ? `- ${dt(m.end_at)}` : ""}</div>
                       {m.google_meet_link ? (
                         <a href={m.google_meet_link} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#004aad] mt-1 inline-block">
@@ -498,7 +499,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                 <div className="text-sm text-slate-600">No contract available yet.</div>
               ) : (
                 <>
-                  <div className="text-sm text-slate-700">Status: <span className="font-semibold text-slate-900">{contract.status}</span> • v{contract.versionNo}</div>
+                  <div className="text-sm text-slate-700">Status: <span className="font-semibold text-slate-900">{formatStatus(contract.status)}</span> • v{contract.versionNo}</div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap max-h-[260px] overflow-auto">
                     {contract.contractText}
                   </div>
@@ -544,7 +545,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                     <div key={v.id} className="rounded-xl border border-slate-200 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-semibold text-slate-900">#{v.id} {v.title}</div>
-                        <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{v.status}</span>
+                        <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{formatStatus(v.status)}</span>
                       </div>
                       <div className="text-xs text-slate-600 mt-1">
                         Amount: {money(v.amount)} • Due: {d(v.due_date)}

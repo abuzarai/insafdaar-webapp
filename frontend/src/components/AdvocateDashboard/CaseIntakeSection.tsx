@@ -1,3 +1,4 @@
+import { formatStatus, formatAiEnum } from "../common/formatStatus";
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -897,7 +898,7 @@ export default function AdvocateCaseIntakeSection() {
                         <div className="mt-3 space-y-2 text-sm text-slate-700">
                           <div>
                             <span className="text-slate-500">Legal Domain:</span>{" "}
-                            <span className="font-semibold">{full?.interview?.summary?.legalDomain || "—"}</span>
+                            <span className="font-semibold">{formatAiEnum("domain", full?.interview?.summary?.legalDomain)}</span>
                           </div>
                           <div>
                             <span className="text-slate-500">Issue Summary:</span>{" "}
@@ -905,12 +906,12 @@ export default function AdvocateCaseIntakeSection() {
                           </div>
                           <div>
                             <span className="text-slate-500">Primary Language:</span>{" "}
-                            <span>{full?.interview?.summary?.primaryLanguage || "—"}</span>
+                            <span>{formatAiEnum("language", full?.interview?.summary?.primaryLanguage)}</span>
                           </div>
                           <div>
                             <span className="text-slate-500">Urgency:</span>{" "}
                             <span>
-                              {full?.interview?.summary?.urgency || "—"}
+                              {formatAiEnum("urgency", full?.interview?.summary?.urgency)}
                             </span>
                             {full?.interview?.summary?.confidenceScore !== null && full?.interview?.summary?.confidenceScore !== undefined ? (
                               <span>
@@ -1042,7 +1043,7 @@ export default function AdvocateCaseIntakeSection() {
                                         <div className="min-w-0">
                                           <div className="text-sm font-semibold text-slate-900 truncate">{docDisplayName(d)}</div>
                                           <div className="text-xs text-slate-500">
-                                            {d.status ? `Status: ${d.status} • ` : ""}Uploaded: {formatDT(d.created_at)}
+                                            {d.status ? `Status: ${formatStatus(d.status)} • ` : ""}Uploaded: {formatDT(d.created_at)}
                                           </div>
                                         </div>
                                       </div>
@@ -1098,7 +1099,7 @@ export default function AdvocateCaseIntakeSection() {
                                         <div className="min-w-0">
                                           <div className="text-sm font-semibold text-slate-900 truncate">{docDisplayName(d)}</div>
                                           <div className="text-xs text-slate-500">
-                                            {d.status ? `Status: ${d.status} • ` : ""}Uploaded: {formatDT(d.created_at)}
+                                            {d.status ? `Status: ${formatStatus(d.status)} • ` : ""}Uploaded: {formatDT(d.created_at)}
                                           </div>
                                         </div>
                                       </div>
@@ -1146,34 +1147,69 @@ export default function AdvocateCaseIntakeSection() {
                           const currentStatus = String(full?.case?.status || "").toUpperCase();
                           const alreadyAccepted = currentStatus === "ACCEPTED" || currentStatus === "CASE_ACTIVE";
                           const alreadyRejected = currentStatus === "REJECTED";
+                          const awaitingAssignment = currentStatus !== "ADVOCATE_ASSIGNED";
                           return (
                             <>
                         <button
                           type="button"
-                          disabled={fullLoading || !full?.case?.id || alreadyAccepted || alreadyRejected || !!decisionBusy}
+                          disabled={
+                            fullLoading ||
+                            !full?.case?.id ||
+                            alreadyAccepted ||
+                            alreadyRejected ||
+                            awaitingAssignment ||
+                            !!decisionBusy
+                          }
                           onClick={() => acceptCase(selectedId)}
                           className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-semibold transition ${
-                            fullLoading || alreadyAccepted || alreadyRejected || !!decisionBusy
+                            fullLoading ||
+                            alreadyAccepted ||
+                            alreadyRejected ||
+                            awaitingAssignment ||
+                            !!decisionBusy
                               ? "bg-slate-200 text-slate-500 cursor-not-allowed"
                               : "bg-[#004aad] text-white hover:bg-[#003b82]"
                           }`}
                         >
                           <BadgeCheck size={18} />
-                          {alreadyAccepted ? "Case Accepted" : decisionBusy === "accept" ? "Accepting..." : "Accept Case"}
+                          {alreadyAccepted
+                            ? "Case Accepted"
+                            : awaitingAssignment
+                            ? "Awaiting Assignment"
+                            : decisionBusy === "accept"
+                            ? "Accepting..."
+                            : "Accept Case"}
                         </button>
 
                         <button
                           type="button"
-                          disabled={fullLoading || !full?.case?.id || alreadyAccepted || alreadyRejected || !!decisionBusy}
+                          disabled={
+                            fullLoading ||
+                            !full?.case?.id ||
+                            alreadyAccepted ||
+                            alreadyRejected ||
+                            awaitingAssignment ||
+                            !!decisionBusy
+                          }
                           onClick={() => rejectCase(selectedId)}
                           className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl font-semibold transition ${
-                            fullLoading || alreadyAccepted || alreadyRejected || !!decisionBusy
+                            fullLoading ||
+                            alreadyAccepted ||
+                            alreadyRejected ||
+                            awaitingAssignment ||
+                            !!decisionBusy
                               ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                               : "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                           }`}
                         >
                           <XCircle size={18} />
-                          {alreadyRejected ? "Case Rejected" : decisionBusy === "reject" ? "Rejecting..." : "Reject Case"}
+                          {alreadyRejected
+                            ? "Case Rejected"
+                            : awaitingAssignment
+                            ? "Awaiting Assignment"
+                            : decisionBusy === "reject"
+                            ? "Rejecting..."
+                            : "Reject Case"}
                         </button>
                             </>
                           );

@@ -286,7 +286,7 @@ export default function AdvocateNotifications({
       const data = await safeJson<any>(res);
       if (!res.ok) throw new Error(data?.error || data?.message || "Failed to mark all read");
 
-      setToast({ msg: "✅ All notifications marked as read.", type: "ok" });
+      setToast({ msg: "All notifications marked as read.", type: "ok" });
       await fetchNotifications({ reset: true, silent: true });
     } catch (e: any) {
       setToast({ msg: e?.message || "Failed to mark all read.", type: "err" });

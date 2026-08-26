@@ -110,10 +110,12 @@ export default function Hero() {
 
       {/* Hero Text */}
       <div className="relative z-10 text-center px-6">
-        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
-          <span className="text-[#f5b301]">{t("appName")}</span>{" "}
-          <span className="text-white/90">— {t("tagline")}</span>
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
+          <span className="text-[#f5b301]">{t("appName")}</span>
         </h1>
+        <p className="mt-4 text-xl md:text-2xl font-medium text-white/90 tracking-wide">
+          {t("tagline")}
+        </p>
         <p className="mt-6 text-gray-300 text-lg leading-relaxed max-w-2xl mx-auto">
           {t("heroDesc")}
         </p>

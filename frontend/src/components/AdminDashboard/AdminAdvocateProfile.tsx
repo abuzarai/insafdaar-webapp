@@ -1,3 +1,5 @@
+import { formatStatus } from "../common/formatStatus";
+import { isErrorMessage } from "../common/messageTone";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -457,7 +459,7 @@ export default function AdminAdvocateProfile() {
       const out = await safeJson(res);
       if (!res.ok) throw new Error(out?.error || "Save failed");
 
-      setMsg("✅ Advocate profile updated");
+      setMsg("Advocate profile updated");
       await loadFull();
     } catch (e: any) {
       setMsg(e?.message || "Save failed");
@@ -511,7 +513,7 @@ export default function AdminAdvocateProfile() {
       const out = await safeJson(res);
       if (!res.ok) throw new Error(out?.error || "Save availability failed");
 
-      setMsg("✅ Availability updated");
+      setMsg("Availability updated");
       await loadFull();
     } catch (e: any) {
       setMsg(e?.message || "Save availability failed");
@@ -560,7 +562,7 @@ export default function AdminAdvocateProfile() {
       const out = await safeJson(res);
       if (!res.ok) throw new Error(out?.error || "Failed to update document");
 
-      setMsg("✅ Document updated");
+      setMsg("Document updated");
       await loadFull();
       setActive("documents");
     } catch (e: any) {
@@ -598,7 +600,7 @@ export default function AdminAdvocateProfile() {
       const out = await safeJson(res);
       if (!res.ok) throw new Error(out?.error || "Approve failed");
 
-      setMsg("✅ Advocate approved");
+      setMsg("Advocate approved");
       await loadFull();
       setActive("verification");
     } catch (e: any) {
@@ -637,7 +639,7 @@ export default function AdminAdvocateProfile() {
       const out = await safeJson(res);
       if (!res.ok) throw new Error(out?.error || "Unapprove failed");
 
-      setMsg("✅ Advocate unapproved");
+      setMsg("Advocate unapproved");
       await loadFull();
       setActive("verification");
     } catch (e: any) {
@@ -712,11 +714,9 @@ export default function AdminAdvocateProfile() {
             <div
               className={cn(
                 "rounded-lg border px-4 py-3 text-sm",
-                msg.includes("✅")
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                  : msg.includes("❌")
+                isErrorMessage(msg)
                   ? "bg-rose-50 border-rose-200 text-rose-900"
-                  : "bg-amber-50 border-amber-200 text-amber-900"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-900"
               )}
             >
               {msg}
@@ -1093,7 +1093,7 @@ export default function AdminAdvocateProfile() {
                                     docTone(d.status)
                                   )}
                                 >
-                                  {d.status}
+                                  {formatStatus(d.status)}
                                 </span>
                                 {d.lastUpdated ? (
                                   <span className="text-xs text-slate-500">

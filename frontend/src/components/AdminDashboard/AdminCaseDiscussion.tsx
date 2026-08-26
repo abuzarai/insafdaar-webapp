@@ -1,3 +1,5 @@
+import { formatStatus } from "../common/formatStatus";
+import { isErrorMessage } from "../common/messageTone";
 import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../../config";
 import {
@@ -132,14 +134,18 @@ function copyToClipboard(text: string) {
 
 /* ================= Component ================= */
 
-export default function AdminCaseDiscussion() {
+export default function AdminCaseDiscussion({
+  onActionComplete,
+}: {
+  onActionComplete?: () => void;
+}) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<AdminMeetingRow[]>([]);
   const [msg, setMsg] = useState<string>("");
 
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<
-    "All" | "PENDING_ADMIN" | "APPROVED" | "CANCELLED" | "REJECTED"
+    "All" | "PENDING_ADMIN" | "APPROVED" | "REJECTED"
   >("PENDING_ADMIN");
 
   const [selected, setSelected] = useState<AdminMeetingRow | null>(null);
@@ -171,7 +177,7 @@ export default function AdminCaseDiscussion() {
       setRows(Array.isArray(data?.meetings) ? data.meetings : []);
     } catch (e: any) {
       setRows([]);
-      setMsg(`❌ ${e?.message || "Failed to load meetings"}`);
+      setMsg(`${e?.message || "Failed to load meetings"}`);
     } finally {
       setLoading(false);
     }
@@ -218,7 +224,7 @@ export default function AdminCaseDiscussion() {
     if (!selected) return;
 
     if (!meetLink.trim()) {
-      setMsg("❌ Google Meet link is required to approve.");
+      setMsg("Google Meet link is required to approve.");
       return;
     }
 
@@ -246,11 +252,12 @@ export default function AdminCaseDiscussion() {
       const data = await safeJson<any>(res);
       if (!res.ok) throw new Error(data?.error || "Approve failed");
 
-      setMsg("✅ Meeting approved & saved.");
+      setMsg("Meeting approved & saved.");
       closeModal();
       await loadMeetings();
+      onActionComplete?.();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Approve failed"}`);
+      setMsg(`${e?.message || "Approve failed"}`);
     } finally {
       setLoading(false);
     }
@@ -278,11 +285,12 @@ export default function AdminCaseDiscussion() {
       const data = await safeJson<any>(res);
       if (!res.ok) throw new Error(data?.error || "Reject failed");
 
-      setMsg("✅ Meeting rejected.");
+      setMsg("Meeting rejected.");
       closeModal();
       await loadMeetings();
+      onActionComplete?.();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message || "Reject failed"}`);
+      setMsg(`${e?.message || "Reject failed"}`);
     } finally {
       setLoading(false);
     }
@@ -309,11 +317,10 @@ export default function AdminCaseDiscussion() {
             onChange={(e) => setFilter(e.target.value as any)}
             className="outline-none bg-transparent"
           >
+            <option value="All">All</option>
             <option value="PENDING_ADMIN">Pending</option>
             <option value="APPROVED">Approved</option>
-            <option value="CANCELLED">Cancelled</option>
             <option value="REJECTED">Rejected</option>
-            <option value="All">All</option>
           </select>
         </div>
 
@@ -331,9 +338,9 @@ export default function AdminCaseDiscussion() {
         <div
           className={cn(
             "rounded-xl border px-4 py-3 text-sm font-semibold",
-            msg.includes("✅")
-              ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-              : "bg-rose-50 border-rose-200 text-rose-900"
+            isErrorMessage(msg)
+              ? "bg-rose-50 border-rose-200 text-rose-900"
+              : "bg-emerald-50 border-emerald-200 text-emerald-900"
           )}
         >
           {msg}
@@ -413,7 +420,7 @@ export default function AdminCaseDiscussion() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                      <Badge tone={statusTone(r.status)}>{formatStatus(r.status)}</Badge>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end">
@@ -446,7 +453,7 @@ export default function AdminCaseDiscussion() {
                 <div className="text-xs text-slate-500 mt-1">
                   {fmt(selected.start_at)} → {fmt(selected.end_at)} •{" "}
                   <Badge tone={statusTone(selected.status)}>
-                    {selected.status}
+                    {formatStatus(selected.status)}
                   </Badge>
                 </div>
               </div>
@@ -486,7 +493,7 @@ export default function AdminCaseDiscussion() {
                     title="Copy"
                     onClick={() => {
                       const ok = copyToClipboard(meetLink || "");
-                      setMsg(ok ? "✅ Copied meet link" : "❌ Could not copy");
+                      setMsg(ok ? "Copied meet link" : "Could not copy");
                     }}
                   >
                     <Copy size={16} />

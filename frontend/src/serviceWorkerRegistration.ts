@@ -21,7 +21,7 @@ export function register(config?: any) {
       if (isLocalhost) {
         checkValidServiceWorker(swUrl, config);
         navigator.serviceWorker.ready.then(() =>
-          console.log('⚙️ Service Worker active (localhost)')
+          console.log('⚙Service Worker active (localhost)')
         );
       } else {
         registerValidSW(swUrl, config);
@@ -51,7 +51,7 @@ function registerValidSW(swUrl: string, config?: any) {
 
               if (config && config.onUpdate) config.onUpdate(registration);
             } else {
-              console.log('✅ Content cached for offline use.');
+              console.log('Content cached for offline use.');
               if (config && config.onSuccess) config.onSuccess(registration);
             }
           }
@@ -59,7 +59,7 @@ function registerValidSW(swUrl: string, config?: any) {
       };
     })
     .catch((error) => {
-      console.error('❌ Error during service worker registration:', error);
+      console.error('Error during service worker registration:', error);
     });
 }
 
@@ -78,7 +78,7 @@ function checkValidServiceWorker(swUrl: string, config?: any) {
         registerValidSW(swUrl, config);
       }
     })
-    .catch(() => console.log('⚠️ App is offline, using cached content.'));
+    .catch(() => console.log('App is offline, using cached content.'));
 }
 
 export function unregister() {

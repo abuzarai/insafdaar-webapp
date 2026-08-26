@@ -598,7 +598,7 @@ export default function MyCasesSection({ onOpenCase }: Props) {
                       <div className="text-xs text-slate-600">Will appear here later (backend pending)</div>
                     </div>
 
-                    {/* ✅ Voucher Details (with PDF open link when available) */}
+                    {/* Voucher Details (with PDF open link when available) */}
                     <div className="rounded-xl border border-slate-200 p-3 bg-white">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-slate-700 font-semibold">

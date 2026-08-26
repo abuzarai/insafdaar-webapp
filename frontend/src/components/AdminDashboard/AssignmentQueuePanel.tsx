@@ -1,6 +1,8 @@
+import { formatStatus, formatAiEnum } from "../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../../config";
-import { RefreshCw, Sparkles, UserCheck, Users } from "lucide-react";
+import { RefreshCw, Sparkles, UserCheck, Users, BadgeCheck } from "lucide-react";
 
 type QueueItem = {
   case_id: number;
@@ -19,6 +21,8 @@ type QueueItem = {
   client_email: string;
   preferred_advocate_name: string | null;
   preferred_advocate_email: string | null;
+  assigned_advocate_id: number | null;
+  assigned_advocate_name: string | null;
   has_interview_results?: boolean;
   interview_completed_at?: string | null;
   interview_legal_domain?: string | null;
@@ -140,6 +144,7 @@ function priorityChip(priority: "high" | "medium" | "low") {
 }
 
 export default function AssignmentQueuePanel() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -230,7 +235,7 @@ export default function AssignmentQueuePanel() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to run matching");
-      setMsg("✅ Matching run complete");
+      setMsg("Matching run complete");
       await Promise.all([loadQueue(), loadCandidates(selectedCaseId)]);
     } catch (e: any) {
       setMsg(e?.message || "Failed to run matching");
@@ -255,7 +260,7 @@ export default function AssignmentQueuePanel() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to assign advocate");
-      setMsg("✅ Advocate assigned");
+      setMsg("Advocate assigned");
       await loadQueue();
     } catch (e: any) {
       setMsg(e?.message || "Failed to assign advocate");
@@ -404,7 +409,7 @@ export default function AssignmentQueuePanel() {
                   {selectedItem.client_name || "Client"} ({selectedItem.client_email})
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
-                  Status: {statusLabel(selectedItem.status)} • Domain: {selectedItem.legal_domain || "—"} • Language: {selectedItem.language || "—"}
+                  Status: {statusLabel(selectedItem.status)} • Domain: {formatAiEnum("domain", selectedItem.legal_domain)} • Language: {selectedItem.language || "—"}
                 </div>
                 {selectedItem.preferred_advocate_id ? (
                   <div className="text-xs text-emerald-700 mt-1 font-semibold">
@@ -446,16 +451,16 @@ export default function AssignmentQueuePanel() {
                 ) : (
                   <div className="mt-2 space-y-2 text-xs text-slate-700">
                     <div>
-                      <span className="font-semibold text-slate-900">Legal domain:</span> {interview.summary?.legalDomain || "—"}
+                      <span className="font-semibold text-slate-900">Legal domain:</span> {formatAiEnum("domain", interview.summary?.legalDomain)}
                     </div>
                     <div>
                       <span className="font-semibold text-slate-900">Issue summary:</span> {interview.summary?.issueSummary || "—"}
                     </div>
                     <div>
-                      <span className="font-semibold text-slate-900">Primary language:</span> {interview.summary?.primaryLanguage || "—"}
+                      <span className="font-semibold text-slate-900">Primary language:</span> {formatAiEnum("language", interview.summary?.primaryLanguage)}
                     </div>
                     <div>
-                      <span className="font-semibold text-slate-900">Urgency:</span> {interview.summary?.urgency || "—"}
+                      <span className="font-semibold text-slate-900">Urgency:</span> {formatAiEnum("urgency", interview.summary?.urgency)}
                       {interview.summary?.confidenceScore !== null && interview.summary?.confidenceScore !== undefined ? (
                         <span> • <span className="font-semibold text-slate-900">Confidence:</span> {(interview.summary.confidenceScore * 100).toFixed(0)}%</span>
                       ) : null}
@@ -547,19 +552,44 @@ export default function AssignmentQueuePanel() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={assignAdvocate}
-                disabled={!selectedAdvocateId || busy || String(selectedItem.status || "").toUpperCase() === "ADVOCATE_ASSIGNED"}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-60"
-              >
-                <UserCheck size={16} />
-                {String(selectedItem.status || "").toUpperCase() === "ADVOCATE_ASSIGNED"
-                  ? "Already Assigned"
-                  : busy && activeAction === "assigning"
-                  ? "Assigning..."
-                  : "Approve & Assign"}
-              </button>
+              {String(selectedItem.status || "").toUpperCase() === "ADVOCATE_ASSIGNED" ? (
+                <>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold opacity-70"
+                  >
+                    <BadgeCheck size={16} /> Assigned
+                  </button>
+                  {selectedItem.assigned_advocate_id ? (
+                    <span className="text-xs text-slate-600 inline-flex items-center gap-1">
+                      <Users size={14} />
+                      to{" "}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/advocates/${selectedItem.assigned_advocate_id}`)}
+                        className="font-semibold text-[#004aad] hover:underline inline-flex items-center gap-0.5"
+                      >
+                        {selectedItem.assigned_advocate_name || "Advocate"}
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-600 inline-flex items-center gap-1">
+                      <Users size={14} /> Assigned to {selectedItem.assigned_advocate_name || "Advocate"}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={assignAdvocate}
+                  disabled={!selectedAdvocateId || busy}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-60"
+                >
+                  <UserCheck size={16} />
+                  {busy && activeAction === "assigning" ? "Assigning..." : "Approve & Assign"}
+                </button>
+              )}
               <span className="text-xs text-slate-500 inline-flex items-center gap-1">
                 <Users size={14} /> Lawyer receives case after this admin approval.
               </span>

@@ -121,12 +121,12 @@ export default function Header() {
             {t("home")}
           </NavLink>
 
-          {/* ✅ Meet Advocates */}
+          {/* Meet Advocates */}
           <NavLink to="/meet-advocates" className={linkClass}>
             Meet Advocates
           </NavLink>
 
-          {/* ✅ NEW: How it Works */}
+          {/* NEW: How it Works */}
           <NavLink to="/how-it-works" className={linkClass}>
             How It Works
           </NavLink>
@@ -260,7 +260,7 @@ export default function Header() {
               {t("home")}
             </NavLink>
 
-            {/* ✅ Meet Advocates */}
+            {/* Meet Advocates */}
             <NavLink
               to="/meet-advocates"
               className={linkClass}
@@ -269,7 +269,7 @@ export default function Header() {
               Meet Advocates
             </NavLink>
 
-            {/* ✅ NEW: How it Works */}
+            {/* NEW: How it Works */}
             <NavLink
               to="/how-it-works"
               className={linkClass}

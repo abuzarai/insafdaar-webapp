@@ -2,10 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus,
-  LogIn,
   ClipboardCheck,
   Mic,
-  Languages,
   UserCheck,
   Handshake,
   FileText,
@@ -14,6 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  BadgeCheck,
+  Download,
 } from "lucide-react";
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -26,7 +26,7 @@ type Step = {
   desc: React.ReactNode;
   icon: React.ReactNode;
   badge?: string;
-  group: "Client" | "Admin" | "Case";
+  group: "start" | "match" | "agreement" | "pay";
   accent?: string;
 };
 
@@ -238,105 +238,137 @@ export default function HowItWorksPage() {
     () => [
       {
         id: "signup",
-        group: "Client",
-        title: "1) Register / Sign up",
-        desc: "Create your account in a few seconds.",
+        group: "start",
+        title: "Create your account",
+        badge: "OTP verified",
+        desc: (
+          <>
+            Register as a client in seconds — your account is secured with{" "}
+            <b>OTP email verification</b>.
+          </>
+        ),
         icon: <UserPlus className="text-slate-800" />,
       },
       {
-        id: "login",
-        group: "Client",
-        title: "2) Login",
-        desc: "Log in to access your dashboard.",
-        icon: <LogIn className="text-slate-800" />,
-      },
-      {
         id: "profile",
-        group: "Client",
-        title: "3) Complete profile",
-        desc: "Add your key details so we can process your case smoothly.",
+        group: "start",
+        title: "Complete your profile",
+        desc: (
+          <>
+            Add your details once — name, CNIC, city and contacts. Upload your{" "}
+            <b>CNIC (front & back)</b> and <b>address proof</b>.
+          </>
+        ),
         icon: <ClipboardCheck className="text-slate-800" />,
       },
       {
         id: "start-case",
-        group: "Client",
-        title: "4) Start Case",
+        group: "start",
+        title: "Start a case",
         badge: "Main Step",
         desc: (
           <>
-            Start your case and select language: <b>Urdu</b> or <b>English</b>.
+            Pick your language: <b>Urdu</b> or <b>English</b>.
           </>
         ),
         icon: <Scale className="text-slate-800" />,
       },
       {
-        id: "language-to-voice",
-        group: "Client",
-        title: "5) Language selected → Voice recording",
-        badge: "Updated",
+        id: "ai-interview",
+        group: "start",
+        title: "AI voice interview",
         desc: (
           <>
-            If the user selects <b>Urdu</b> or <b>English</b>, they are{" "}
-            <b>redirected to record voice via Mic</b> to describe the case.
-          </>
-        ),
-        icon: <Languages className="text-slate-800" />,
-      },
-      {
-        id: "voice",
-        group: "Client",
-        title: "6) Record voice notes (Mic)",
-        desc: (
-          <>
-            Record your details as <b>voice notes</b>. We capture everything for
-            admin review.
+            Answer guided questions <b>by voice</b>. Everything is transcribed and analysed
+            into a structured case summary automatically.
           </>
         ),
         icon: <Mic className="text-slate-800" />,
       },
       {
-        id: "admin-verify",
-        group: "Admin",
-        title: "7) Admin verification",
-        desc: "Admin checks the voice notes / summary for quality and correctness.",
-        icon: <ShieldCheck className="text-slate-800" />,
+        id: "matching",
+        group: "match",
+        title: "AI advocate matching",
+        badge: "Smart shortlist",
+        desc: (
+          <>
+            Advocates are ranked by specialization, experience and workload into a shortlist.
+            You can mark a <b>preferred advocate</b>.
+          </>
+        ),
+        icon: <Sparkles className="text-slate-800" />,
       },
       {
-        id: "advocate-assigned",
-        group: "Admin",
-        title: "8) Advocate assigned by Admin",
-        badge: "Admin assigned",
-        desc: "Admin assigns the best advocate based on specialization and case need.",
+        id: "admin-assign",
+        group: "match",
+        title: "Admin assigns the advocate",
+        desc: "An administrator reviews the shortlist and officially assigns the advocate — your preferred choice is respected.",
         icon: <UserCheck className="text-slate-800" />,
       },
       {
-        id: "meeting-budget",
-        group: "Case",
-        title: "9) Meeting + budget negotiation",
-        desc: "Client and advocate meet, discuss details, and negotiate the budget.",
+        id: "advocate-accepts",
+        group: "match",
+        title: "Advocate accepts & prepares",
+        desc: "The assigned advocate reviews your facts and documents, verifies them, and begins preparation.",
+        icon: <BadgeCheck className="text-slate-800" />,
+      },
+      {
+        id: "meeting",
+        group: "agreement",
+        title: "Meeting over Google Meet",
+        desc: (
+          <>
+            The advocate requests a meeting; once approved, a <b>Google Meet link</b> is
+            generated automatically so you can discuss the details.
+          </>
+        ),
         icon: <Handshake className="text-slate-800" />,
       },
       {
-        id: "voucher-pdf",
-        group: "Case",
-        title: "10) PDF fee voucher generated",
-        desc: "A PDF fee voucher is generated after confirmation.",
+        id: "contract-sign",
+        group: "agreement",
+        title: "Contract drafted & signed",
+        badge: "AI assisted",
+        desc: (
+          <>
+            A draft contract is prepared with AI assistance. Both parties review it and{""}
+            <b>sign digitally with OTP</b>.
+          </>
+        ),
         icon: <FileText className="text-slate-800" />,
       },
       {
-        id: "voucher-approve",
-        group: "Admin",
-        title: "11) Admin approves voucher",
-        desc: "Admin verifies the voucher and confirms everything is correct.",
+        id: "contract-approve",
+        group: "agreement",
+        title: "Admin approves the contract",
+        badge: "Unlocks case",
+        desc: (
+          <>
+            After verifying signatures, the admin approves — unlocking your <b>full case
+            dashboard</b>.
+          </>
+        ),
         icon: <ShieldCheck className="text-slate-800" />,
       },
       {
-        id: "case-unlocked",
-        group: "Case",
-        title: "12) Client can view case details",
-        badge: "Unlocked",
-        desc: "Once approved, client can view full case details in the dashboard.",
-        icon: <ClipboardCheck className="text-slate-800" />,
+        id: "voucher",
+        group: "pay",
+        title: "Fee voucher & payment proof",
+        desc: (
+          <>
+            A <b>PDF fee voucher</b> is generated instantly. Download it, deposit the fee,
+            and upload your payment proof.
+          </>
+        ),
+        icon: <Download className="text-slate-800" />,
+      },
+      {
+        id: "payment-verified",
+        group: "pay",
+        title: "Payment verified — case proceeds",
+        badge: "Done",
+        desc: "The admin verifies your payment and your case moves forward actively. Track every stage from your dashboard.",
+        icon: <ShieldCheck className="text-slate-800" />,
       },
     ],
     []
@@ -357,9 +389,10 @@ export default function HowItWorksPage() {
   const goNext = () => setActive((a) => (a + 1) % total);
 
   const chips = [
-    { key: "Client", label: "Client Journey" },
-    { key: "Admin", label: "Admin Review" },
-    { key: "Case", label: "Case & Voucher" },
+    { key: "start", label: "Getting Started" },
+    { key: "match", label: "Matching & Assignment" },
+    { key: "agreement", label: "Meetings & Contract" },
+    { key: "pay", label: "Payments & Access" },
   ] as const;
 
   return (
@@ -402,9 +435,8 @@ export default function HowItWorksPage() {
                 How it <span style={{ color: BRAND.gold }}>Works</span>
               </h1>
               <p className="mt-4 text-gray-300 max-w-2xl leading-relaxed">
-                A creative step-by-step flow — signup → voice recording (Urdu/English) →
-                admin review → advocate assignment → meeting & budget → verified voucher →
-                case access.
+                Register → complete your profile → AI voice intake → smart advocate matching →
+                meet & sign online → secure payments → track your case to completion.
               </p>
             </div>
 
@@ -596,11 +628,11 @@ export default function HowItWorksPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="font-extrabold text-slate-900">
-                    Important correction (applied)
+                    Your preference matters
                   </div>
                   <div className="text-sm text-slate-600 mt-1">
-                    Selecting <b>Urdu</b> or <b>English</b> redirects the user to{" "}
-                    <b>record voice via Mic</b>, and the <b>advocate is assigned by Admin</b>.
+                    Mark a <b>preferred advocate</b> from your shortlist — the admin assigns
+                    advocates with your choice in mind.
                   </div>
                 </div>
               </div>

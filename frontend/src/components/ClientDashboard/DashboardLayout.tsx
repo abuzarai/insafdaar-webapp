@@ -33,7 +33,7 @@ type ClientProfile = {
   emergencyContactPhone: string;
   identityDocStatus: ProfileStatus;
   addressProofStatus: ProfileStatus;
-  documentsCompleted?: boolean; // ✅ allow missing for older payloads
+  documentsCompleted?: boolean; // allow missing for older payloads
   avatarUrl: string;
   joined: string;
 };
@@ -121,7 +121,7 @@ export default function DashboardLayout() {
 
       const token = localStorage.getItem("token");
       if (!token) {
-        setTopMsg("⚠️ You are not logged in. Please login again.");
+        setTopMsg("You are not logged in. Please login again.");
         setProfile(null);
         return;
       }
@@ -175,7 +175,7 @@ export default function DashboardLayout() {
 
     if (next === "Start Case" && !canStartCase) {
       setActiveSection("Profile");
-      setTopMsg("⚠️ Please complete your profile before starting a case.");
+      setTopMsg("Please complete your profile before starting a case.");
       return;
     }
 
@@ -232,7 +232,7 @@ export default function DashboardLayout() {
         canStartCase={canStartCase}
       />
 
-      {/* ✅ Responsive fix: on mobile, push content below burger by adding left padding */}
+      {/* Responsive fix: on mobile, push content below burger by adding left padding */}
       <div className="flex-1 flex flex-col w-full min-w-0">
         <header className="sticky top-0 z-20 w-full bg-white/95 backdrop-blur border-b border-slate-200 px-4 md:px-6 py-3 md:py-4">
           <div className="w-full flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">

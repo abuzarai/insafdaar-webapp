@@ -1,3 +1,4 @@
+import { formatStatus } from "../common/formatStatus";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BadgeCheck, Save, RefreshCw, AlertTriangle } from "lucide-react";
@@ -279,7 +280,7 @@ export default function CaseClosureSection() {
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs text-slate-500">Selected</div>
               <div className="mt-1 text-sm font-bold text-slate-900 truncate">{selectedCase.title}</div>
-              <div className="mt-1 text-xs text-slate-500">Status: {selectedCase.status}</div>
+              <div className="mt-1 text-xs text-slate-500">Status: {formatStatus(selectedCase.status)}</div>
             </div>
           )}
         </div>

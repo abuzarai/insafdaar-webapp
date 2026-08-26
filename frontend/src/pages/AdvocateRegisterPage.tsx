@@ -26,7 +26,7 @@ export default function AdvocateRegisterPage() {
     setMsg("");
 
     if (!form.name || !form.email || !form.password || !form.bar_id) {
-      setMsg("⚠️ Please fill in all required fields.");
+      setMsg("Please fill in all required fields.");
       return;
     }
 
@@ -38,11 +38,11 @@ export default function AdvocateRegisterPage() {
       // ✅ store email for OTP page
       localStorage.setItem("pending_email", res.data?.email || form.email);
 
-      setMsg("✅ OTP sent to your email. Redirecting to verification...");
+      setMsg("OTP sent to your email. Redirecting to verification...");
       setTimeout(() => navigate("/verify-otp"), 800);
     } catch (err: any) {
       const serverMsg = err?.response?.data?.error;
-      setMsg(serverMsg ? `❌ ${serverMsg}` : "❌ Registration failed. Please try again.");
+      setMsg(serverMsg ? `${serverMsg}` : "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }

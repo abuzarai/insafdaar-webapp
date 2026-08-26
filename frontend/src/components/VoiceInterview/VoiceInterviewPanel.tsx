@@ -1,3 +1,4 @@
+import { formatAiEnum } from "../common/formatStatus";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { VOICE_SERVICE_URL, API_BASE_URL } from "../../config";
 import {
@@ -556,7 +557,7 @@ export default function VoiceInterviewPanel({
 
                     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                         // Send audio
-                        console.log("✅ sending audio over WS, bytes=", audioBlob.size);
+                        console.log("sending audio over WS, bytes=", audioBlob.size);
                         wsRef.current.send(JSON.stringify({
                             type: "audio",
                             audio: base64Audio,
@@ -649,7 +650,7 @@ export default function VoiceInterviewPanel({
             console.error("Auto-recording error:", error);
             setStatus("error");
             setStatusText("Microphone access denied");
-            addMsg("system", "❌ Microphone access denied. Please allow microphone access and try again.");
+            addMsg("system", "Microphone access denied. Please allow microphone access and try again.");
             onError?.("Microphone access denied");
         }
     };
@@ -1025,11 +1026,11 @@ export default function VoiceInterviewPanel({
                         >
                             <div style={{ background: "#0b1120", padding: "12px 16px", borderRadius: 8 }}>
                                 <strong style={{ color: "#94a3b8", display: "block", marginBottom: 4 }}>Legal Domain</strong>
-                                {result.analysis.legal_domain || "—"}
+                                {formatAiEnum("domain", result.analysis.legal_domain)}
                             </div>
                             <div style={{ background: "#0b1120", padding: "12px 16px", borderRadius: 8 }}>
                                 <strong style={{ color: "#94a3b8", display: "block", marginBottom: 4 }}>Urgency</strong>
-                                {result.analysis.urgency || "—"}
+                                {formatAiEnum("urgency", result.analysis.urgency)}
                             </div>
                             <div style={{ background: "#0b1120", padding: "12px 16px", borderRadius: 8 }}>
                                 <strong style={{ color: "#94a3b8", display: "block", marginBottom: 4 }}>Confidence Score</strong>

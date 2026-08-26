@@ -1,3 +1,4 @@
+import { formatStatus } from "../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -480,7 +481,10 @@ export default function CaseStagesTrackingSection() {
       }>(res);
       if (!res.ok) {
         const blocked = getCaseNotActiveStatus(data);
-        if (blocked) setBlockedStatus(blocked);
+        if (blocked) {
+        setBlockedStatus(blocked);
+        return;
+      }
         throw new Error(data?.message || data?.error || "Failed to load cases.");
       }
 
@@ -518,7 +522,10 @@ export default function CaseStagesTrackingSection() {
       const data = await safeJson<StagesResponse | any>(res);
       if (!res.ok) {
         const blocked = getCaseNotActiveStatus(data);
-        if (blocked) setBlockedStatus(blocked);
+        if (blocked) {
+          setBlockedStatus(blocked);
+          return; // the friendly locked banner communicates this — no raw error box
+        }
         throw new Error(data?.message || data?.error || "Failed to load stages.");
       }
 
@@ -570,7 +577,10 @@ export default function CaseStagesTrackingSection() {
       const data = await safeJson<any>(res);
       if (!res.ok) {
         const blocked = getCaseNotActiveStatus(data);
-        if (blocked) setBlockedStatus(blocked);
+        if (blocked) {
+          setBlockedStatus(blocked);
+          return;
+        }
         throw new Error(data?.message || data?.error || "Failed to complete stage.");
       }
 
@@ -630,7 +640,7 @@ export default function CaseStagesTrackingSection() {
               {selectedCase?.status ? (
                 <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border bg-slate-50 text-slate-700 border-slate-200">
                   <BadgeCheck size={14} />
-                  {selectedCase.status}
+                  {formatStatus(selectedCase.status)}
                 </span>
               ) : null}
             </div>

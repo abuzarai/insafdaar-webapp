@@ -1,3 +1,5 @@
+import { formatStatus } from "../common/formatStatus";
+import { isErrorMessage } from "../common/messageTone";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -619,7 +621,7 @@ export default function AdminClientProfile() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to run matching");
 
-      setAssignMsg("✅ Matching run complete. Review shortlist and assign.");
+      setAssignMsg("Matching run complete. Review shortlist and assign.");
       await loadMatchingCandidates(activeStartCaseId);
     } catch (e: any) {
       setAssignMsg(e?.message || "Failed to run matching");
@@ -764,7 +766,7 @@ export default function AdminClientProfile() {
     if (!res.ok) {
       setMsg(data?.error || "Update failed");
     } else {
-      setMsg("✅ Client profile updated");
+      setMsg("Client profile updated");
       await refreshCommon();
     }
     setLoading(false);
@@ -803,7 +805,7 @@ export default function AdminClientProfile() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to create voucher");
 
-      setMsg("✅ Voucher created");
+      setMsg("Voucher created");
       setShowCreateVoucher(false);
       setVoucherForm({
         title: "Total Fee Voucher",
@@ -838,7 +840,7 @@ export default function AdminClientProfile() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to send voucher");
 
-      setMsg("✅ Voucher sent (PDF generated)");
+      setMsg("Voucher sent (PDF generated)");
       await loadBilling();
     } catch (e: any) {
       setMsg(e.message || "Failed to send voucher");
@@ -859,7 +861,7 @@ export default function AdminClientProfile() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Verify failed");
 
-      setMsg("✅ Proof verified");
+      setMsg("Proof verified");
       await Promise.all([loadPendingProofs(), loadBilling()]);
     } catch (e: any) {
       setMsg(e.message || "Verify failed");
@@ -895,7 +897,7 @@ export default function AdminClientProfile() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Reject failed");
 
-      setMsg("✅ Proof rejected");
+      setMsg("Proof rejected");
       await Promise.all([loadPendingProofs(), loadBilling()]);
     } catch (e: any) {
       setMsg(e.message || "Reject failed");
@@ -951,7 +953,7 @@ export default function AdminClientProfile() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to assign advocate");
 
-      setAssignMsg("✅ Advocate assigned to active start case");
+      setAssignMsg("Advocate assigned to active start case");
       await refreshStartCase();
     } catch (e: any) {
       setAssignMsg(e?.message || "Failed to assign advocate");
@@ -1146,9 +1148,9 @@ export default function AdminClientProfile() {
             <div
               className={cn(
                 "rounded-lg border px-4 py-3 text-sm",
-                msg.includes("✅")
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                  : "bg-amber-50 border-amber-200 text-amber-900"
+                isErrorMessage(msg)
+                  ? "bg-rose-50 border-rose-200 text-rose-900"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-900"
               )}
             >
               {msg}
@@ -1205,7 +1207,7 @@ export default function AdminClientProfile() {
                 <div className="mt-4 space-y-2">
                   <SectionButton icon={<User2 size={18} />} title="Profile" subtitle="Client details & status" activeKey="profile" />
 
-                  {/* ✅ NEW: Start Case section */}
+                  {/* NEW: Start Case section */}
                   <SectionButton
                     icon={<FileText size={18} />}
                     title="Start Case"
@@ -1288,7 +1290,7 @@ export default function AdminClientProfile() {
               </CardShell>
             )}
 
-            {/* ✅ NEW: START CASE */}
+            {/* NEW: START CASE */}
             {active === "start_case" && (
               <CardShell
                 title={
@@ -1415,9 +1417,9 @@ export default function AdminClientProfile() {
                             <div
                               className={cn(
                                 "mt-3 rounded-lg border px-3 py-2 text-sm font-semibold",
-                                assignMsg.includes("✅")
-                                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                                  : "bg-amber-50 border-amber-200 text-amber-900"
+                                isErrorMessage(assignMsg)
+                                  ? "bg-rose-50 border-rose-200 text-rose-900"
+                                  : "bg-emerald-50 border-emerald-200 text-emerald-900"
                               )}
                             >
                               {assignMsg}
@@ -1646,7 +1648,7 @@ export default function AdminClientProfile() {
               </CardShell>
             )}
 
-            {/* CASES (✅ removed assign-advocate UI from here) */}
+            {/* CASES (removed assign-advocate UI from here) */}
             {active === "cases" && (
               <CardShell
                 title={
@@ -1684,10 +1686,10 @@ export default function AdminClientProfile() {
                         className="border border-slate-200 rounded-lg px-3 py-2 bg-white"
                       >
                         <option value="All">All Status</option>
-                        <option value="OPEN">OPEN</option>
-                        <option value="IN_PROGRESS">IN_PROGRESS</option>
-                        <option value="CLOSED">CLOSED</option>
-                        <option value="PENDING">PENDING</option>
+                        <option value="OPEN">Open</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="CLOSED">Closed</option>
+                        <option value="PENDING">Pending</option>
                       </select>
                     </div>
 
@@ -1735,7 +1737,7 @@ export default function AdminClientProfile() {
                               </span>
 
                               <span className="text-[11px] px-2 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-700">
-                                {c.status}
+                                {formatStatus(c.status)}
                               </span>
 
                               <span
@@ -2204,7 +2206,7 @@ export default function AdminClientProfile() {
                 onChange={(e) => setVoucherForm({ ...voucherForm, due_date: e.target.value })}
               />
 
-              {/* ✅ Bank fields */}
+              {/* Bank fields */}
               <input
                 className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 placeholder="Bank Name (optional)"

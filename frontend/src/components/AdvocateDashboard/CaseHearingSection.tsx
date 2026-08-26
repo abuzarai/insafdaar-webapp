@@ -1138,7 +1138,7 @@ export default function CaseHearingSection() {
                 </div>
 
                 <div className="text-xs text-slate-500">
-                  ✅ Aligned with backend: uses hearings list for attendance/proceedings fields; evidence/drafts fetched from
+                  Aligned with backend: uses hearings list for attendance/proceedings fields; evidence/drafts fetched from
                   their GET endpoints.
                 </div>
               </div>

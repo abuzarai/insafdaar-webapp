@@ -319,7 +319,7 @@ export default function BillingSection() {
     } catch (e: any) {
       setMsg(
         e?.response?.data?.error ||
-          "❌ Failed to load vouchers. Please logout/login and try again."
+          "Failed to load vouchers. Please logout/login and try again."
       );
     } finally {
       setLoading(false);
@@ -374,7 +374,7 @@ export default function BillingSection() {
 
       setActive(details);
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Failed to load voucher details.");
+      setMsg(e?.response?.data?.error || "Failed to load voucher details.");
       setActive(null);
     }
   };
@@ -398,7 +398,7 @@ export default function BillingSection() {
 
     // ✅ backend expects proof upload only after SENT (PDF exists)
     if (st !== "SENT" && st !== "UPLOADED") {
-      setMsg(`❌ You cannot upload proof right now. Current status: ${st}`);
+      setMsg(`You cannot upload proof right now. Current status: ${st}`);
       return;
     }
 
@@ -421,12 +421,12 @@ export default function BillingSection() {
         throw new Error(res.data?.error || "Upload failed");
       }
 
-      setMsg("✅ Payment proof uploaded. Admin will verify it.");
+      setMsg("Payment proof uploaded. Admin will verify it.");
 
       await fetchVouchers();
       await fetchDetails(active.id);
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || e?.message || "❌ Upload failed. Please try again.");
+      setMsg(e?.response?.data?.error || e?.message || "Upload failed. Please try again.");
     } finally {
       setUploadingProof(false);
     }
@@ -464,10 +464,10 @@ export default function BillingSection() {
         {msg && <div className="mt-2 text-sm text-amber-700">{msg}</div>}
       </div>
 
-      {/* ✅ Mobile Tabs */}
+      {/* Mobile Tabs */}
       <MobileTabs value={mobileTab} onChange={setMobileTab} hasDetails={!!active} />
 
-      {/* ✅ Mobile: Voucher list (cards) */}
+      {/* Mobile: Voucher list (cards) */}
       <div className={`md:hidden ${mobileTab === "LIST" ? "block" : "hidden"}`}>
         <div className="space-y-3">
           {loading ? (
@@ -495,7 +495,7 @@ export default function BillingSection() {
         </div>
       </div>
 
-      {/* ✅ Desktop: Table */}
+      {/* Desktop: Table */}
       <div className="hidden md:block bg-white border border-slate-200 rounded-2xl p-6 shadow-sm overflow-x-auto">
         {loading ? (
           <div className="text-slate-600 flex items-center gap-2">
@@ -579,7 +579,7 @@ export default function BillingSection() {
         )}
       </div>
 
-      {/* ✅ Details panel */}
+      {/* Details panel */}
       {active && (
         <div
           className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 ${

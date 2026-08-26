@@ -12,7 +12,8 @@ import {
   BadgeCheck,
   FileSignature,
 } from "lucide-react";
-import { API_BASE_URL } from "../../config"; // ✅ adjust path if needed
+import { API_BASE_URL } from "../../config"; // adjust path if needed
+import UserAvatar from "../common/UserAvatar";
 
 export type SectionName =
   | "My Cases"
@@ -56,12 +57,12 @@ export default function Sidebar({
   // ✅ Build correct avatar URL (supports "/uploads/..." from backend)
   const avatar =
     profileLoading
-      ? "https://ui-avatars.com/api/?background=004aad&color=fff&name=Loading"
+      ? null
       : profile?.avatarUrl?.trim()
       ? profile.avatarUrl.startsWith("http")
         ? profile.avatarUrl
         : `${API_BASE_URL}${profile.avatarUrl}`
-      : "https://ui-avatars.com/api/?background=004aad&color=fff&name=Client";
+      : null;
 
   const displayName =
     profileLoading ? "Loading…" : profile?.fullName?.trim() || "Client";
@@ -108,7 +109,7 @@ export default function Sidebar({
         {open ? <X size={22} /> : <Menu size={22} />}
       </button>
 
-      {/* ✅ Mobile overlay so sidebar doesn't "break" layout & closes nicely */}
+      {/* Mobile overlay so sidebar doesn't "break" layout & closes nicely */}
       <div
         onClick={() => setOpen(false)}
         className={`fixed inset-0 z-30 bg-black/40 md:hidden transition-opacity ${
@@ -127,10 +128,12 @@ export default function Sidebar({
             className="flex flex-col items-center py-8 border-b border-white/10 cursor-pointer"
             onClick={() => handleNav("Profile")}
           >
-            <img
-              src={avatar}
-              alt="Client Avatar"
-              className="w-24 h-24 rounded-full border-2 border-[#f5b301] shadow-md hover:scale-105 transition-transform object-cover"
+            <UserAvatar
+              name={displayName}
+              role="client"
+              url={avatar}
+              size={96}
+              className="border-2 border-[#f5b301] shadow-md hover:scale-105 transition-transform"
             />
 
             <h2 className="text-lg font-bold mt-3 flex items-center gap-2">
@@ -199,7 +202,7 @@ export default function Sidebar({
           </nav>
         </div>
 
-        {/* ⚖️ Footer */}
+        {/* ⚖Footer */}
         <div className="text-center text-xs text-gray-400 pb-6 border-t border-white/10 pt-4">
           <p>© {new Date().getFullYear()} Insafdaar</p>
           <p className="text-[#f5b301] font-semibold">Justice for Everyone</p>

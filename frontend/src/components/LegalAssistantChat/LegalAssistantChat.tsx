@@ -252,7 +252,7 @@ export default function LegalAssistantChat({
       );
 
       const botReply: string =
-        response.data?.answer ?? "⚠️ I couldn't understand the server response.";
+        response.data?.answer ?? "I couldn't understand the server response.";
 
       const botMsg: ChatMessage = {
         id: `a-${Date.now()}`,
@@ -289,7 +289,7 @@ export default function LegalAssistantChat({
       const errMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: "assistant",
-        content: `⚠️ ${serverMessage}`,
+        content: `${serverMessage}`,
       };
       onMessagesChange([...updatedAfterUser, errMsg]);
     } finally {
@@ -487,7 +487,7 @@ export default function LegalAssistantChat({
             </div>
           ))}
 
-          {/* ✅ SENDING INDICATOR (so no blank feeling) */}
+          {/* SENDING INDICATOR (so no blank feeling) */}
           {sending && (
             <div className="anim-fadeIn flex justify-end">
               <div

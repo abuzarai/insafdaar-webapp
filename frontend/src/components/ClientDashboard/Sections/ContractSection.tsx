@@ -1,3 +1,4 @@
+import { formatStatus } from "../../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
 import { FileText, CheckCircle2, PenSquare, RefreshCw, Paperclip, ShieldCheck } from "lucide-react";
 import { API_BASE_URL } from "../../../config";
@@ -56,7 +57,6 @@ export default function ContractSection() {
   const [selectedCaseId, setSelectedCaseId] = useState<string>("");
   const [contract, setContract] = useState<ContractPayload | null>(null);
   const [typedFullName, setTypedFullName] = useState("");
-  const [consentChecked, setConsentChecked] = useState(false);
   const [signatureNote, setSignatureNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<"refresh" | "otpRequest" | "otpVerify" | "sign" | null>(null);
@@ -191,7 +191,8 @@ export default function ContractSection() {
         headers: authHeaders(true),
         body: JSON.stringify({
           typedFullName,
-          consentChecked,
+          // merged checkbox covers read + understood + agree → satisfies consent
+          consentChecked: confirmedReadUnderstood,
           signatureNote: signatureNote.trim() || undefined,
           otpSessionId,
           confirmedReadUnderstood,
@@ -258,7 +259,7 @@ export default function ContractSection() {
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
             <div className="flex items-center gap-2 text-slate-900 font-bold">
               <FileText size={18} /> {contract.title || `Contract #${contract.id}`} (v{contract.versionNo})
-              <span className="text-xs font-semibold px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{contract.status}</span>
+              <span className="text-xs font-semibold px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{formatStatus(contract.status)}</span>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
@@ -376,18 +377,10 @@ export default function ContractSection() {
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
-                    checked={consentChecked}
-                    onChange={(e) => setConsentChecked(e.target.checked)}
-                  />
-                  I confirm I have read and agree to this contract.
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
                     checked={confirmedReadUnderstood}
                     onChange={(e) => setConfirmedReadUnderstood(e.target.checked)}
                   />
-                  I confirm I have read and understood the contract text.
+                  I confirm I have read, understood, and agree to this contract.
                 </label>
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input
@@ -420,7 +413,6 @@ export default function ContractSection() {
                   disabled={
                     loading ||
                     !typedFullName.trim() ||
-                    !consentChecked ||
                     !otpSessionId ||
                     !confirmedReadUnderstood ||
                     !confirmedVoluntary ||

@@ -28,6 +28,47 @@ import {
 
 import { API_BASE_URL } from "../../config";
 
+/** Strip the raw JSON blob that Gemini/backend errors often carry, keeping just the message. */
+function cleanErrorMessage(raw: string): string {
+  if (!raw) return "Failed to generate AI draft.";
+  // "...message... {'error': {...}}" → take what's before the JSON object
+  const m = raw.match(/^(.*?)(?:\s*\{\s*['"]error|\.$)/s);
+  const clean = (m && m[1] ? m[1] : raw).trim();
+  return clean || "Failed to generate AI draft.";
+}
+
+function isQuotaError(raw: string): boolean {
+  return /429|RESOURCE_EXHAUSTED|quota|Quota|rate.?limit/i.test(raw || "");
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-slate-100 transition"
+          >
+            <XCircle size={18} className="text-slate-700" />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 /* ================= Types ================= */
 
 type DocStatus = "Provided" | "Missing" | "Needs Review" | "Approved";
@@ -345,6 +386,7 @@ export default function CasePreparationSection() {
   const [actionLoading, setActionLoading] = useState<null | "checklist" | "request" | "complete" | "upload" | "draft">(null);
   const [error, setError] = useState<string>("");
   const [blockedStatus, setBlockedStatus] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState<boolean>(false);
   const [draftResult, setDraftResult] = useState<{ generationId: string; documentType: string; draft: DraftContent | null } | null>(
     null
   );
@@ -614,7 +656,12 @@ export default function CasePreparationSection() {
         setDraftNotice("Draft generated. You can now edit, rewrite sections, and export.");
         setDraftStudioOpen(true);
       } catch (e: any) {
-        setError(e?.message || "Failed to generate AI draft.");
+        const rawMsg = e?.message || "Failed to generate AI draft.";
+        if (isQuotaError(rawMsg)) {
+          setQuotaExceeded(true);
+        } else {
+          setError(cleanErrorMessage(rawMsg));
+        }
       } finally {
         setActionLoading(null);
       }
@@ -1254,6 +1301,33 @@ export default function CasePreparationSection() {
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       )}
 
+      {quotaExceeded && (
+        <Modal title="Daily AI limit reached" onClose={() => setQuotaExceeded(false)}>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-slate-700">
+                The free AI tier has a daily limit (~20 generations per day for this model), and today's
+                limit has been used up.
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600 space-y-1">
+              <div className="font-semibold text-slate-800">What you can do:</div>
+              <div>• Try again later — the limit resets daily (midnight Pacific).</div>
+              <div>• Use the AI Studio or drafting model with higher limits for lighter tasks.</div>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setQuotaExceeded(false)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white text-sm font-semibold hover:bg-[#003b82] transition"
+              >
+                OK, got it
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {blockedStatus && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           Preparation workflow is locked until the case is active. Current status: <b>{normalizeLifecycleStatus(blockedStatus)}</b>.
@@ -1288,7 +1362,7 @@ export default function CasePreparationSection() {
             </div>
           </div>
 
-          {/* ✅ Draft Template UI improved (behavior unchanged) */}
+          {/* Draft Template UI improved (behavior unchanged) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-slate-500">AI Draft Template</div>
@@ -1520,24 +1594,47 @@ export default function CasePreparationSection() {
                       <Download size={16} className="text-[#004aad]" />
                       Download
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateDocStatus(d, "NEEDS_REVIEW")}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition text-sm font-semibold disabled:opacity-60"
-                      disabled={!details?.case?.id || actionLoading === "checklist"}
-                    >
-                      <AlertTriangle size={16} className="text-amber-700" />
-                      Needs Review
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateDocStatus(d, "APPROVED")}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition text-sm font-semibold disabled:opacity-60"
-                      disabled={!details?.case?.id || actionLoading === "checklist"}
-                    >
-                      <BadgeCheck size={16} className="text-emerald-700" />
-                      Approve
-                    </button>
+                    {(() => {
+                      const isApproved = d.status === "Approved";
+                      const isReview = d.status === "Needs Review";
+                      const busy = !details?.case?.id || actionLoading === "checklist";
+                      return (
+                        <>
+                          {isApproved ? (
+                            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold">
+                              <BadgeCheck size={16} className="text-emerald-700" />
+                              Verified
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateDocStatus(d, "APPROVED")}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition text-sm font-semibold disabled:opacity-60"
+                              disabled={busy}
+                            >
+                              <BadgeCheck size={16} className="text-emerald-700" />
+                              {isReview ? "Confirm Approval" : "Approve"}
+                            </button>
+                          )}
+                          {isReview ? (
+                            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold">
+                              <AlertTriangle size={16} className="text-amber-700" />
+                              Marked Needs Review
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateDocStatus(d, "NEEDS_REVIEW")}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition text-sm font-semibold disabled:opacity-60"
+                              disabled={busy}
+                            >
+                              <AlertTriangle size={16} className="text-amber-700" />
+                              Needs Review
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))

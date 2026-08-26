@@ -279,7 +279,7 @@ export default function FeedbackSection() {
   const submit = async () => {
     const err = validate();
     if (err) {
-      setMsg(`⚠️ ${err}`);
+      setMsg(`${err}`);
       return;
     }
 
@@ -315,7 +315,7 @@ export default function FeedbackSection() {
       });
 
       setSubmitted(true);
-      setMsg("✅ Thank you! Your feedback has been submitted.");
+      setMsg("Thank you! Your feedback has been submitted.");
       setTimeout(() => setSubmitted(false), 1400);
 
       // refresh list
@@ -324,7 +324,7 @@ export default function FeedbackSection() {
       // (optional) reset form after submit
       reset();
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Failed to submit feedback.");
+      setMsg(e?.response?.data?.error || "Failed to submit feedback.");
     } finally {
       setBusy(false);
     }

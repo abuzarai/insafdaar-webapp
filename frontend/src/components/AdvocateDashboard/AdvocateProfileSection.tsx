@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { API_BASE_URL } from "../../config";
+import UserAvatar from "../common/UserAvatar";
 
 import {
   BadgeCheck,
@@ -412,7 +413,7 @@ export default function AdvocateProfileSection() {
 
         setDocuments(merged);
       } catch (e: any) {
-        setMsg(e?.response?.data?.error || "❌ Failed to load advocate profile. Please logout/login and try again.");
+        setMsg(e?.response?.data?.error || "Failed to load advocate profile. Please logout/login and try again.");
       } finally {
         setLoading(false);
       }
@@ -444,9 +445,9 @@ export default function AdvocateProfileSection() {
       setSavingProfile(true);
       setMsg("");
 
-      if (!edit.name.trim()) return setMsg("⚠️ Name is required.");
-      if (!edit.city.trim()) return setMsg("⚠️ City is required.");
-      if (!edit.court.trim()) return setMsg("⚠️ Court is required.");
+      if (!edit.name.trim()) return setMsg("Name is required.");
+      if (!edit.city.trim()) return setMsg("City is required.");
+      if (!edit.court.trim()) return setMsg("Court is required.");
 
       const payload: Partial<AdvocateProfile> = {
         name: edit.name.trim(),
@@ -464,9 +465,9 @@ export default function AdvocateProfileSection() {
       const updated = await patchProfileApi(payload);
       setProfile(updated);
       setEditMode(false);
-      setMsg("✅ Profile updated.");
+      setMsg("Profile updated.");
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Failed to update profile.");
+      setMsg(e?.response?.data?.error || "Failed to update profile.");
     } finally {
       setSavingProfile(false);
     }
@@ -509,9 +510,9 @@ export default function AdvocateProfileSection() {
       setMsg("");
       const updated = await saveAvailabilityApi(availability);
       setAvailability(updated);
-      setMsg("✅ Availability saved.");
+      setMsg("Availability saved.");
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Failed to save availability.");
+      setMsg(e?.response?.data?.error || "Failed to save availability.");
     } finally {
       setSavingAvailability(false);
     }
@@ -543,9 +544,9 @@ export default function AdvocateProfileSection() {
       await uploadDocumentApi(docKey, file);
 
       await refreshDocumentsFromFullProfile();
-      setMsg("✅ Document uploaded. Pending admin review.");
+      setMsg("Document uploaded. Pending admin review.");
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "❌ Upload failed. Please try again.");
+      setMsg(e?.response?.data?.error || "Upload failed. Please try again.");
     } finally {
       setUploadingKey(null);
     }
@@ -578,7 +579,7 @@ export default function AdvocateProfileSection() {
       ? uiProfile.avatarUrl
       : uiProfile.avatarUrl
       ? `${API_BASE_URL}${uiProfile.avatarUrl}`
-      : "https://i.pravatar.cc/150";
+      : null;
 
   return (
     <section className="space-y-8">
@@ -637,11 +638,20 @@ export default function AdvocateProfileSection() {
         <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-6">
           {/* Avatar */}
           <div className="flex-shrink-0 flex flex-col items-center md:items-start">
-            <img
-              src={avatarSrc}
-              alt="Advocate"
-              className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl border border-slate-200 shadow-md object-cover"
-            />
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt="Advocate"
+                className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl border border-slate-200 shadow-md object-cover"
+              />
+            ) : (
+              <UserAvatar
+                name={uiProfile.name}
+                role="advocate"
+                size={144}
+                className="rounded-2xl shadow-md"
+              />
+            )}
 
             <button
               type="button"

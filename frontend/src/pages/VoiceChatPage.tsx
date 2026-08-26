@@ -55,7 +55,7 @@ export default function VoiceChatPage() {
               onClick={startRec}
               className="px-6 py-3 bg-[#004aad] text-white rounded-lg font-semibold shadow hover:bg-[#005de0] transition"
             >
-              🎙️ Start Recording
+              🎙Start Recording
             </button>
           ) : (
             <button
