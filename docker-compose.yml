@@ -116,6 +116,7 @@ services:
       WEAVIATE_COLLECTION: LegalChunk
       WEAVIATE_GRPC_PORT: "50051"
       DRIVE_ROOT_FOLDER_ID: ${DRIVE_ROOT_FOLDER_ID}
+      DRIVE_ALLOWED_EXTS: ${DRIVE_ALLOWED_EXTS:-pdf}
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/drive-sa.json
       INGESTION_STATE_BACKEND: file
     volumes:

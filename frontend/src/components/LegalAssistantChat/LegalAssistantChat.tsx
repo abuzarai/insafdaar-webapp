@@ -149,6 +149,10 @@ function getDisplayContent(content: string) {
 
   cleaned = cleaned
     .replace(/^\s*Citations\s*:\s*[\s\S]*?(?=^\s*Sources\s*:\s*|\s*$)/gim, "")
+    // strip bare trailing source-reference lines ("Order-VII-Plaints.pdf p.35")
+    // that the model sometimes adds even without a Citations: header,
+    // since the Sources box below already shows them
+    .replace(/^(?:[-*]\s*)?[\w-]+\.pdf\s+p?\.?\s*\d+(?:\s*,\s*\d+)*\s*$/gim, "")
     .replace(/^\s*[-*]\s*Source\s*\d+\s*$/gim, "")
     .replace(/^\s*\*\*?\s*Sources\s*:?\s*\*\*?\s*$/gim, "")
     .replace(/^\s*Sources\s*:\s*$/gim, "")
@@ -217,8 +221,10 @@ export default function LegalAssistantChat({
     setHideQuickOptions(true);
     setInput("");
 
-    // ✅ show sending bubble instantly
+    // show "Sending…" bubble briefly (echo of the user message), then
+    // "Thinking…" takes over via loading. The two must never overlap.
     setSending(true);
+    window.setTimeout(() => setSending(false), 700);
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -228,10 +234,6 @@ export default function LegalAssistantChat({
 
     const updatedAfterUser = [...messages, userMsg];
     onMessagesChange(updatedAfterUser);
-
-    // keep "sending..." for at least a short moment so it feels smooth
-    const minSendingMs = 850;
-    const startedAt = Date.now();
 
     setLoading(true);
 
@@ -293,11 +295,6 @@ export default function LegalAssistantChat({
       };
       onMessagesChange([...updatedAfterUser, errMsg]);
     } finally {
-      const elapsed = Date.now() - startedAt;
-      const remaining = Math.max(0, minSendingMs - elapsed);
-
-      // ✅ stop sending after minimum time
-      window.setTimeout(() => setSending(false), remaining);
       setLoading(false);
     }
   };
