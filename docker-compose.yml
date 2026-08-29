@@ -108,7 +108,6 @@ services:
     environment:
       ENV: prod
       GEMINI_API_KEY: ${RAG_GEMINI_API_KEY}
-      GEMINI_API_KEY_FALLBACKS: ${DRAFTING_GEMINI_API_KEY},${VOICE_GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       EMBEDDING_MODEL: gemini-embedding-001
       EMBEDDING_OUTPUT_DIMS: "768"
