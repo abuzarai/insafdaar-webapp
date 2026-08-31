@@ -85,7 +85,7 @@ export default function RightSideChatPanel({ open, onClose }: any) {
             </div>
             {/* Full screen */}
             <button aria-label="Fullscreen"
-              onClick={() => navigate("/legal-assistant")}
+              onClick={() => navigate("/legal-assistant", { state: { messages } })}
               className="p-2 rounded-md hover:bg-white/20 transition"
             >
               <Maximize2 size={18} className="text-white" />

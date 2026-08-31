@@ -9,7 +9,7 @@ import {
   PanelLeftClose,
   MessageSquare,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, useNavigationType } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
 import LegalAssistantChat, {
@@ -18,6 +18,7 @@ import LegalAssistantChat, {
 import { useActionDialogs } from "../components/common/ActionDialog";
 
 const CHAT_OWNER_KEY = "legal_assistant_owner_id";
+const ACTIVE_CONVERSATION_KEY = "legal_assistant_active_conversation_id";
 
 function getOrCreateChatOwnerId() {
   const existing = localStorage.getItem(CHAT_OWNER_KEY);
@@ -93,14 +94,38 @@ const WELCOME_MESSAGE: ChatMessage = {
 
 export default function LegalAssistantPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationType = useNavigationType();
   const [ownerId] = useState<string>(() => getOrCreateChatOwnerId());
   const [profile] = useState(() => getUserProfile());
+
+  // The floating widget hands its in-flight chat over via navigation state so
+  // expanding never loses the conversation. Only a real expand (PUSH)
+  // carries the chat: browsers restore history state on reload/back, so
+  // seeding on those would re-create a duplicate conversation.
+  const seededMessages =
+    navigationType === "PUSH"
+      ? ((location.state as { messages?: ChatMessage[] } | null) ?? {}).messages
+      : undefined;
+  const initialMessages: ChatMessage[] =
+    Array.isArray(seededMessages) && seededMessages.length > 0
+      ? seededMessages
+      : [WELCOME_MESSAGE];
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     null
   );
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+
+  // When opened with an in-flight chat from the floating widget, persist it
+  // as a new conversation right away (instead of waiting for the next send).
+  useEffect(() => {
+    if (navigationType === "PUSH" && initialMessages.length >= 2) {
+      void handleMessagesChange(initialMessages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
@@ -129,6 +154,14 @@ export default function LegalAssistantPage() {
           }
         );
         setConversations(res.data || []);
+        const list = res.data || [];
+
+        // Refresh should return to the conversation that was open, not the
+        // welcome screen. The id is persisted locally on open/create.
+        const activeId = localStorage.getItem(ACTIVE_CONVERSATION_KEY);
+        if (activeId && list.some((c) => c.id === activeId)) {
+          loadConversation(activeId);
+        }
       } catch (err) {
         console.error("Failed to load conversations", err);
       } finally {
@@ -137,6 +170,7 @@ export default function LegalAssistantPage() {
     };
 
     fetchConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerId]);
 
   const loadConversation = async (id: string) => {
@@ -149,6 +183,7 @@ export default function LegalAssistantPage() {
           }
         );
       const conv = res.data;
+      localStorage.setItem(ACTIVE_CONVERSATION_KEY, conv.id);
       setActiveConversationId(conv.id);
       setMessages(
         conv.messages && conv.messages.length > 0
@@ -163,6 +198,7 @@ export default function LegalAssistantPage() {
   };
 
   const handleNewChat = () => {
+    localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
     setActiveConversationId(null);
     setMessages([WELCOME_MESSAGE]);
   };
@@ -204,6 +240,7 @@ export default function LegalAssistantPage() {
             .then((res) => {
               const created = res.data;
               activeConversationIdRef.current = created.id;
+              localStorage.setItem(ACTIVE_CONVERSATION_KEY, created.id);
               setActiveConversationId(created.id);
               setConversations((prev) => {
                 const next = [
@@ -294,6 +331,7 @@ export default function LegalAssistantPage() {
 
       setConversations((prev) => prev.filter((conv) => conv.id !== id));
       if (activeConversationId === id) {
+        localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
         setActiveConversationId(null);
         setMessages([WELCOME_MESSAGE]);
       }
@@ -316,6 +354,7 @@ export default function LegalAssistantPage() {
       await axios.delete(`${API_BASE_URL}/api/legal-assistant/conversations`, {
         headers: getChatHeaders(ownerId),
       });
+      localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
       setConversations([]);
       setActiveConversationId(null);
       setMessages([WELCOME_MESSAGE]);
