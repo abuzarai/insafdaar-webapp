@@ -72,7 +72,12 @@ async function callDraftingAssistant(pathname, payload, timeoutMs = getDraftingT
       return { ok: false, status: 504, payload: { error: `Drafting assistant request timed out after ${timeoutMs}ms` } };
     }
     if (err?.cause?.code === "ECONNREFUSED" || err?.cause?.code === "ENOTFOUND") {
-      return { ok: false, status: 502, payload: { error: "Drafting assistant is unreachable" } };
+      return {
+        ok: false,
+        status: 502,
+        retryable: true,
+        payload: { error: "Drafting assistant is unreachable" },
+      };
     }
     return { ok: false, status: 500, payload: { error: "Internal server error" } };
   } finally {
@@ -990,7 +995,10 @@ export async function generateContractAIDraftByAdvocate(req, res) {
       getDraftingGenerateTimeoutMs()
     );
 
-    if (!upstreamCall.ok && upstreamCall.status === 504) {
+    // Retry only genuine network failures; never on 504 (the drafting service
+    // keeps generating server-side — a retry would duplicate the expensive
+    // Gemini call and leave two competing generation_ids).
+    if (!upstreamCall.ok && upstreamCall.retryable) {
       upstreamCall = await callDraftingAssistant(
         "/draft/generate",
         {

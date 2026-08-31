@@ -84,7 +84,12 @@ async function callDraftingAssistant(pathname, payload, asJson = true, timeoutMs
     }
 
     if (err?.cause?.code === "ECONNREFUSED" || err?.cause?.code === "ENOTFOUND") {
-      return { ok: false, status: 502, payload: { error: "Drafting assistant is unreachable" } };
+      return {
+        ok: false,
+        status: 502,
+        retryable: true,
+        payload: { error: "Drafting assistant is unreachable" },
+      };
     }
 
     return { ok: false, status: 500, payload: { error: "Internal server error" }, err };
@@ -746,8 +751,12 @@ export async function generatePreparationAIDraft(req, res) {
       generateTimeoutMs
     );
 
-    if (!upstreamCall.ok && upstreamCall.status === 504) {
-      console.warn("[AI-DRAFT] generate:timeout-first-attempt", {
+    // Retry only genuine network failures (drafting container down / restarted).
+    // Timeouts (504) never retry: the drafting service keeps generating
+    // server-side, so a retry would double Gemini spend and produce two
+    // competing generation_ids.
+    if (!upstreamCall.ok && upstreamCall.retryable) {
+      console.warn("[AI-DRAFT] generate:unreachable-first-attempt", {
         caseId: Number(caseId),
         advocateId: Number(advocateId),
         documentType,
