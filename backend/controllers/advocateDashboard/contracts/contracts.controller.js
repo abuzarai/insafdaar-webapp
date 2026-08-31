@@ -51,6 +51,7 @@ async function callDraftingAssistant(pathname, payload, timeoutMs = getDraftingT
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        "x-internal-key": process.env.INTERNAL_API_KEY || "",
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
@@ -1132,6 +1133,7 @@ export async function exportContractAIDraftDocxByAdvocate(req, res) {
         headers: {
           "Content-Type": "application/json",
           Accept: "*/*",
+          "x-internal-key": process.env.INTERNAL_API_KEY || "",
         },
         body: JSON.stringify({
           case_id: caseId,

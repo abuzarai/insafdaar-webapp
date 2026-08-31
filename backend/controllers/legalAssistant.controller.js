@@ -1,15 +1,8 @@
-import { GoogleAuth } from "google-auth-library";
 import { randomUUID } from "crypto";
 import pool from "../db.js";
 
-let cachedIdTokenClient = null;
 let conversationsTableReady = false;
 let guestUsageTableReady = false;
-
-function toBoolean(value, fallback = false) {
-  if (value == null) return fallback;
-  return String(value).toLowerCase() === "true";
-}
 
 function getRagBaseUrl() {
   return process.env.LEGAL_RAG_API_URL || "";
@@ -139,17 +132,14 @@ function getTimeoutMs() {
   return raw;
 }
 
-async function getAuthHeaders(baseUrl) {
-  const requireAuth = toBoolean(process.env.LEGAL_RAG_REQUIRE_AUTH, true);
-  if (!requireAuth) return {};
-
-  const audience = process.env.LEGAL_RAG_AUDIENCE || baseUrl;
-  if (!cachedIdTokenClient) {
-    const auth = new GoogleAuth();
-    cachedIdTokenClient = await auth.getIdTokenClient(audience);
-  }
-
-  return cachedIdTokenClient.getRequestHeaders();
+async function getAuthHeaders() {
+  // Shared internal key: the RAG service enforces X-Internal-Key.
+  // The old Google ID-token path only worked on GCP and broke on the compose
+  // service ran inside the compose network.)
+  // (deleted line)
+  const internalKey = process.env.INTERNAL_API_KEY;
+  if (!internalKey) return {};
+  return { "x-internal-key": internalKey };
 }
 
 export async function queryLegalAssistant(req, res) {
@@ -189,7 +179,7 @@ export async function queryLegalAssistant(req, res) {
     url.searchParams.set("q", String(query).trim());
     url.searchParams.set("k", String(topK));
 
-    const authHeaders = await getAuthHeaders(ragBaseUrl);
+    const authHeaders = await getAuthHeaders();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), getTimeoutMs());
 

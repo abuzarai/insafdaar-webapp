@@ -57,6 +57,7 @@ async function callDraftingAssistant(pathname, payload, asJson = true, timeoutMs
       headers: {
         "Content-Type": "application/json",
         Accept: asJson ? "application/json" : "*/*",
+        "x-internal-key": process.env.INTERNAL_API_KEY || "",
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
