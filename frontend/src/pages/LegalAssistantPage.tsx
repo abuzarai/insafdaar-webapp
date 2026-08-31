@@ -5,6 +5,7 @@ import {
   Menu,
   Plus,
   Trash2,
+  Pencil,
   PanelLeftOpen,
   PanelLeftClose,
   MessageSquare,
@@ -121,7 +122,7 @@ export default function LegalAssistantPage() {
   // When opened with an in-flight chat from the floating widget, persist it
   // as a new conversation right away (instead of waiting for the next send).
   useEffect(() => {
-    if (navigationType === "PUSH" && initialMessages.length >= 2) {
+    if (Array.isArray(initialMessages) && initialMessages.length >= 2) {
       void handleMessagesChange(initialMessages);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +130,7 @@ export default function LegalAssistantPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
-  const { confirm, dialogs } = useActionDialogs();
+  const { confirm, prompt, dialogs } = useActionDialogs();
 
   const activeConversationIdRef = useRef<string | null>(null);
   const creatingConversationRef = useRef<Promise<string> | null>(null);
@@ -337,6 +338,34 @@ export default function LegalAssistantPage() {
       }
     } catch (err) {
       console.error("Failed to delete conversation", err);
+    }
+  };
+
+  const handleRenameConversation = async (id: string, currentTitle: string) => {
+    const newTitle = await prompt({
+      title: "Rename Conversation",
+      message: "Give this conversation a new title.",
+      defaultValue: currentTitle,
+      placeholder: "Conversation title",
+      confirmText: "Rename",
+      cancelText: "Cancel",
+    });
+    if (!newTitle?.trim()) return;
+
+    try {
+      const res = await axios.put<ConversationFull>(
+        `${API_BASE_URL}/api/legal-assistant/conversations/${id}`,
+        { title: newTitle.trim() },
+        { headers: getChatHeaders(ownerId) }
+      );
+      const updated = res.data;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, title: updated.title, updatedAt: updated.updatedAt } : c
+        )
+      );
+    } catch (err) {
+      console.error("Failed to rename conversation", err);
     }
   };
 
@@ -593,6 +622,20 @@ export default function LegalAssistantPage() {
                                   {new Date(conv.updatedAt).toLocaleString()}
                                 </span>
                               </div>
+                            </button>
+                            <button
+                              onClick={() => handleRenameConversation(conv.id, conv.title)}
+                              className="p-2 rounded-md text-slate-400 hover:text-blue-300 hover:bg-slate-800 transition"
+                              title="Rename conversation"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleRenameConversation(conv.id, conv.title)}
+                              className="p-2 rounded-md text-slate-400 hover:text-blue-300 hover:bg-slate-800 transition"
+                              title="Rename conversation"
+                            >
+                              <Pencil size={13} />
                             </button>
                             <button
                               onClick={() => handleDeleteConversation(conv.id)}

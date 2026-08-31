@@ -295,19 +295,22 @@ export async function updateConversation(req, res) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
 
-    const messages = sanitizeMessages(req.body?.messages);
-    const title = deriveTitle(messages);
+    const messages = req.body?.messages ? sanitizeMessages(req.body.messages) : null;
+    const title =
+      String(req.body?.title || (messages ? deriveTitle(messages) : null) || "")
+        .slice(0, 120)
+        .trim() || "New Conversation";
 
     const result = await pool.query(
       `
         UPDATE legal_assistant_conversations
-        SET messages = $3::jsonb,
+        SET messages = COALESCE($3::jsonb, messages),
             title = COALESCE(NULLIF($4, ''), title),
             updated_at = NOW()
         WHERE id = $1 AND owner_id = $2
         RETURNING id, title, messages, created_at, updated_at
       `,
-      [req.params.id, ownerId, JSON.stringify(messages), title]
+      [req.params.id, ownerId, messages ? JSON.stringify(messages) : null, title]
     );
 
     if (result.rows.length === 0) {
