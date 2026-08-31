@@ -79,6 +79,36 @@ describe("Auth and registration API tests", () => {
     expect(dbClient.release).toHaveBeenCalled();
   });
 
+  test("test_user_registration_smtp_failure_still_201", async () => {
+    dbClient.query
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 101, email: "sara@example.com" }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    sendOtpEmailMock.mockRejectedValueOnce(new Error("SMTP connection refused"));
+
+    const payload = {
+      name: "Sara Khan",
+      email: "sara@example.com",
+      password: "StrongPass123!",
+      cnic: "35202-1234567-8",
+      phone: "+923001234567",
+    };
+
+    const response = await request(app).post("/api/register/client").send(payload);
+
+    // account is still created; SMTP failure must not produce a 500
+    expect(response.status).toBe(201);
+    expect(response.body.emailDelivered).toBe(false);
+    expect(response.body.message).toContain("could not be sent");
+    expect(dbClient.release).toHaveBeenCalled();
+  });
+
   test("test_user_registration_missing_required_fields", async () => {
     const response = await request(app).post("/api/register/client").send({
       name: "",

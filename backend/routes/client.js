@@ -95,13 +95,22 @@ router.post("/", async (req, res) => {
 
     await db.query("COMMIT");
 
-    // send OTP email (after commit)
-    await sendOtpEmail(cleanEmail, otp);
+    // send OTP email (after commit) — delivery failure must not fail registration
+    let emailDelivered = true;
+    try {
+      await sendOtpEmail(cleanEmail, otp);
+    } catch (mailErr) {
+      console.error("OTP email failed to send (account created):", mailErr);
+      emailDelivered = false;
+    }
 
     return res.status(201).json({
-      message: "OTP sent to email",
+      message: emailDelivered
+        ? "OTP sent to email"
+        : "Account created, but the OTP email could not be sent. Use resend OTP on the next screen.",
       redirect: "/verify-otp",
       email: cleanEmail,
+      emailDelivered,
     });
   } catch (err) {
     try { await db.query("ROLLBACK"); } catch {}

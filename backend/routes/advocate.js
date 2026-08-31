@@ -59,14 +59,23 @@ router.post("/", async (req, res) => {
       [userId, otpHash]
     );
 
-    // send OTP email
-    await sendOtpEmail(email, otp);
+    // send OTP email — delivery failure must not fail registration
+    let emailDelivered = true;
+    try {
+      await sendOtpEmail(email, otp);
+    } catch (mailErr) {
+      console.error("OTP email failed to send (account created):", mailErr);
+      emailDelivered = false;
+    }
 
     // response for frontend redirect
     return res.status(201).json({
-      message: "OTP sent to email",
+      message: emailDelivered
+        ? "OTP sent to email"
+        : "Account created, but the OTP email could not be sent. Use resend OTP on the next screen.",
       redirect: "/verify-otp",
-      email: email
+      email: email,
+      emailDelivered,
     });
 
   } catch (err) {
