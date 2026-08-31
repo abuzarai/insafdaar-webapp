@@ -1,112 +1,12 @@
 import pool from "../../../db.js";
 import { CASE_STATUS, transitionCaseStatus } from "../../../utils/caseLifecycle.js";
+import { getLatestInterviewResult } from "../../../utils/interviewMatching.js";
 
-function toObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
 
-function toStringOrNull(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  return s ? s : null;
-}
 
-function toNumberOrNull(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
 
-function toStringList(value) {
-  if (Array.isArray(value)) {
-    return value
-      .map((v) => toStringOrNull(v))
-      .filter(Boolean)
-      .slice(0, 8);
-  }
 
-  const raw = toStringOrNull(value);
-  if (!raw) return [];
 
-  return raw
-    .split(/\n|\||;|,/g)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, 8);
-}
-
-function normalizeInterviewSummary(analysis) {
-  const a = toObject(analysis);
-
-  return {
-    primaryLanguage: toStringOrNull(a.primary_language),
-    legalDomain: toStringOrNull(a.legal_domain),
-    issueSummary: toStringOrNull(a.issue_summary),
-    urgency: toStringOrNull(a.urgency),
-    urgencyReasoning: toStringOrNull(a.urgency_reasoning),
-    adrSuitable: typeof a.adr_suitable === "boolean" ? a.adr_suitable : null,
-    adrReasoning: toStringOrNull(a.adr_reasoning),
-    confidenceScore: toNumberOrNull(a.confidence_score),
-    keyEntities: {
-      parties: toStringList(a?.key_entities?.parties),
-      locations: toStringList(a?.key_entities?.locations),
-      dates: toStringList(a?.key_entities?.dates),
-      amounts: toStringList(a?.key_entities?.amounts),
-    },
-  };
-}
-
-async function getLatestInterviewResult(caseId) {
-  const r = await pool.query(
-    `
-      SELECT
-        id,
-        mode,
-        provider,
-        status,
-        language,
-        transcript,
-        analysis,
-        audio_url,
-        audio_duration,
-        completion_source,
-        result_hash,
-        webhook_received_at,
-        fallback_received_at,
-        completed_at,
-        updated_at,
-        created_at
-      FROM public.case_intake_sessions
-      WHERE case_id = $1
-      ORDER BY completed_at DESC NULLS LAST, updated_at DESC NULLS LAST, created_at DESC, id DESC
-      LIMIT 1
-    `,
-    [Number(caseId)]
-  );
-
-  if (!r.rows[0]) return null;
-
-  const row = r.rows[0];
-  return {
-    sessionId: Number(row.id),
-    meta: {
-      mode: row.mode || null,
-      provider: row.provider || null,
-      status: row.status || null,
-      language: row.language || null,
-      completedAt: row.completed_at || null,
-      updatedAt: row.updated_at || null,
-      audioUrl: row.audio_url || null,
-      audioDuration: row.audio_duration || null,
-      completionSource: row.completion_source || null,
-      resultHash: row.result_hash || null,
-      webhookReceivedAt: row.webhook_received_at || null,
-      fallbackReceivedAt: row.fallback_received_at || null,
-    },
-    summary: normalizeInterviewSummary(row.analysis),
-    transcript: row.transcript || null,
-    analysis: row.analysis || null,
-  };
-}
 
 /* =========================
    Get assigned cases
@@ -230,7 +130,7 @@ export async function getCaseFull(req, res) {
       [caseId]
     );
 
-    const interview = await getLatestInterviewResult(caseId);
+    const interview = await getLatestInterviewResult(pool, caseId);
 
     return res.json({
       case: caseRow,
