@@ -1,4 +1,3 @@
-import React from "react";
 import { motion } from "framer-motion";
 import { Scale, BrainCircuit, Users, Banknote, Mic } from "lucide-react";
 import { useTranslation } from "react-i18next";

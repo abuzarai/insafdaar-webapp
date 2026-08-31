@@ -228,7 +228,7 @@ export default function ClientProfileSection({
 
   const [docs, setDocs] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
-  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [, setAvatarUploading] = useState(false);
 
   const [tab, setTab] = useState<TabKey>("overview");
   const [viewMode, setViewMode] = useState(false);

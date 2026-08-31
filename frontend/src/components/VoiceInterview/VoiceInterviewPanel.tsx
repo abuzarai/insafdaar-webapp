@@ -1,6 +1,6 @@
 import { formatAiEnum } from "../common/formatStatus";
 import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { VOICE_SERVICE_URL, API_BASE_URL } from "../../config";
 import {
     Mic,
@@ -97,6 +97,10 @@ export default function VoiceInterviewPanel({
 }: Props) {
     /* ─── React state (UI only) ─────────────────────── */
     const [status, setStatus] = useState<"idle" | "connecting" | "active" | "complete" | "error">("idle");
+    const statusRef = useRef(status);
+    useEffect(() => {
+      statusRef.current = status;
+    }, [status]);
     const [statusText, setStatusText] = useState("Click Start to begin the interview");
     const [messages, setMessages] = useState<Message[]>([]);
     const [agentState, setAgentState] = useState<AgentState>("idle");
@@ -367,7 +371,7 @@ export default function VoiceInterviewPanel({
             };
 
             ws.onclose = () => {
-                if (status === "active") setStatusText("Connection closed");
+                if (statusRef.current === "active") setStatusText("Connection closed");
                 if (!hasDeliveredResultRef.current && sessionIdRef.current) {
                     scheduleFallbackFinalize();
                 }
@@ -765,6 +769,16 @@ export default function VoiceInterviewPanel({
     else if (agentState === "speaking") orbStateClass = "state-speaking";
 
     // Dynamic scale for the orb when listening
+    /* ─── Responsive compact padding (was render-time window.innerWidth) ── */
+    const [compact, setCompact] = useState(
+      () => typeof window !== "undefined" && window.innerWidth < 640
+    );
+    useEffect(() => {
+      const onResize = () => setCompact(window.innerWidth < 640);
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }, []);
+
     const orbScale = agentState === "listening" ? 1 + micVolume * 0.4 : 1;
 
     return (
@@ -773,7 +787,7 @@ export default function VoiceInterviewPanel({
                 fontFamily: "Inter, sans-serif",
                 background: "#0f172a",
                 borderRadius: 16,
-                padding: window.innerWidth < 640 ? "24px 16px" : "40px",
+                padding: compact ? "24px 16px" : "40px",
                 color: "#e2e8f0",
                 display: "flex",
                 flexDirection: "column",

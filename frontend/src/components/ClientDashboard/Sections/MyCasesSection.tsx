@@ -17,8 +17,10 @@ import {
   FileText,
   Trash2,
 } from "lucide-react";
+import { safeExternalHref } from "../../../utils/url";
 import { API_BASE_URL } from "../../../config";
 import { useActionDialogs } from "../../common/ActionDialog";
+import { Badge } from "../../common/Badge";
 
 /* ================= Types ================= */
 
@@ -76,30 +78,6 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function Badge({
-  variant,
-  children,
-}: {
-  variant: "blue" | "amber" | "green" | "gray" | "red";
-  children: React.ReactNode;
-}) {
-  const styles =
-    variant === "blue"
-      ? "bg-blue-50 text-blue-700 border-blue-200"
-      : variant === "amber"
-      ? "bg-amber-50 text-amber-700 border-amber-200"
-      : variant === "green"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : variant === "red"
-      ? "bg-red-50 text-red-700 border-red-200"
-      : "bg-slate-50 text-slate-700 border-slate-200";
-
-  return (
-    <span className={cn("inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border", styles)}>
-      {children}
-    </span>
-  );
-}
 
 function paymentBadge(v: VoucherStatus, hasPdf?: boolean | null) {
   if (v === "VERIFIED")
@@ -677,7 +655,7 @@ export default function MyCasesSection({ onOpenCase }: Props) {
 
                       {meeting?.link ? (
                         <a
-                          href={meeting.link}
+                          href={safeExternalHref(meeting.link)}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}

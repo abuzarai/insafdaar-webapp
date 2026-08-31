@@ -1,5 +1,6 @@
 import { formatStatus } from "../../common/formatStatus";
-import React, { useEffect, useState } from "react";
+import { safeExternalHref } from "../../../utils/url";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import AuthedLink from "../../common/AuthedLink";
 import {
@@ -477,7 +478,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                       <div className="text-xs text-slate-500">{formatStatus(m.status)}</div>
                       <div className="text-sm font-semibold text-slate-900 mt-1">{dt(m.start_at)} {m.end_at ? `- ${dt(m.end_at)}` : ""}</div>
                       {m.google_meet_link ? (
-                        <a href={m.google_meet_link} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#004aad] mt-1 inline-block">
+                        <a href={safeExternalHref(m.google_meet_link)} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#004aad] mt-1 inline-block">
                           Join/Copy Meet Link
                         </a>
                       ) : null}

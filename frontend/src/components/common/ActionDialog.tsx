@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useModalFocus } from "./modalFocus";
 
 type Tone = "neutral" | "danger";
 
@@ -54,6 +55,9 @@ export function useActionDialogs() {
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [promptState, setPromptState] = useState<PromptState>(null);
 
+  const confirmFocus = useModalFocus<HTMLDivElement>(!!confirmState?.open, () => closeConfirm(false));
+  const promptFocus = useModalFocus<HTMLDivElement>(!!promptState?.open, () => closePrompt(null));
+
   const confirm = (opts: ConfirmOptions) =>
     new Promise<boolean>((resolve) => {
       confirmResolverRef.current = resolve;
@@ -88,7 +92,7 @@ export function useActionDialogs() {
   const dialogs = (
     <>
       {confirmState?.open ? (
-        <div className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4">
+        <div ref={confirmFocus} className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="px-5 py-4 border-b border-slate-100">
               <div className="text-base font-bold text-slate-900">{confirmState.title}</div>
@@ -115,7 +119,7 @@ export function useActionDialogs() {
       ) : null}
 
       {promptState?.open ? (
-        <div className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4">
+        <div ref={promptFocus} className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="px-5 py-4 border-b border-slate-100">
               <div className="text-base font-bold text-slate-900">{promptState.title}</div>

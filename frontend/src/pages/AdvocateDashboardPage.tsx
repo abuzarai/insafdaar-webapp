@@ -1,4 +1,3 @@
-import React from "react";
 import DashboardLayout from "../components/AdvocateDashboard/DashboardLayout";
 
 export default function AdvocateDashboardPage() {

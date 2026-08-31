@@ -244,7 +244,7 @@ export default function DashboardLayout() {
           </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button
+              <button aria-label="Open home"
                 type="button"
                 onClick={() => navigate("/")}
                 className="inline-flex items-center justify-center rounded-xl px-3 py-2 border border-slate-200 bg-white hover:bg-slate-50 transition"
@@ -253,7 +253,7 @@ export default function DashboardLayout() {
                 <Home size={18} className="text-slate-700" />
               </button>
 
-              <button
+              <button aria-label="Open legal assistant"
                 type="button"
                 onClick={() => navigate("/legal-assistant")}
                 className="inline-flex items-center justify-center rounded-xl px-3 py-2 border border-slate-200 bg-white hover:bg-slate-50 transition"

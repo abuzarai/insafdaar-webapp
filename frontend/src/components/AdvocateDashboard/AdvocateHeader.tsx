@@ -1,4 +1,3 @@
-import React from "react";
 import AdvocateNotificationsBell from "./AdvocateNotifications";
 
 type Props = {

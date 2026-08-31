@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
 } from "lucide-react";
@@ -67,8 +67,8 @@ function timeAgo(iso: string) {
 export default function NotificationsSection() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"All" | NotificationType>("All");
-  const [readFilter, setReadFilter] = useState<"All" | "Unread" | "Read">("All");
+  const [typeFilter] = useState<"All" | NotificationType>("All");
+  const [readFilter] = useState<"All" | "Unread" | "Read">("All");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

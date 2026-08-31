@@ -1,6 +1,6 @@
 // frontend/src/components/common/AuthedAudio.tsx
 // <audio> wrapper that loads its src through the authenticated /uploads guard.
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { authedBlobUrl } from "../../utils/authedFile";
 
 export default function AuthedAudio({

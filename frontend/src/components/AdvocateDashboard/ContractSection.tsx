@@ -23,9 +23,7 @@ function QuotaModal({ onClose }: { onClose: () => void }) {
       <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
           <h3 className="text-base font-semibold text-slate-900">Daily AI limit reached</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition">
-            <XCircle size={18} className="text-slate-700" />
-          </button>
+          <button aria-label="Close" onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition"><XCircle size={18} className="text-slate-700"  aria-hidden="true" /></button>
         </div>
         <div className="p-5">
           <div className="space-y-3">

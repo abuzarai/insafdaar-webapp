@@ -478,14 +478,12 @@ export default function CaseDiscussion() {
                     <div className="text-lg font-bold text-slate-900 mt-1 truncate">{selectedCase.title}</div>
                     <div className="text-xs text-slate-500 mt-1">Case ID: {selectedCase.id}</div>
                   </div>
-                  <button
+                  <button aria-label="Close"
                     type="button"
                     onClick={closePanel}
                     className="p-2 rounded-xl hover:bg-slate-100 transition"
                     title="Close"
-                  >
-                    <X size={18} className="text-slate-700" />
-                  </button>
+                  ><X size={18} className="text-slate-700"  aria-hidden="true" /></button>
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">

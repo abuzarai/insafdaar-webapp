@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Send, Loader2, MessageSquare, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { safeExternalHref } from "../../utils/url";
 import { API_BASE_URL } from "../../config";
 
 export type ChatMessage = {
@@ -452,7 +453,7 @@ export default function LegalAssistantChat({
                             <li key={`${msg.id}-source-${idx}`} className="leading-snug">
                               {source.link ? (
                                 <a
-                                  href={source.link}
+                                  href={safeExternalHref(source.link)}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="font-medium hover:underline"

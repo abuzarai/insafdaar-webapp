@@ -84,7 +84,7 @@ export default function RightSideChatPanel({ open, onClose }: any) {
               {initials}
             </div>
             {/* Full screen */}
-            <button
+            <button aria-label="Fullscreen"
               onClick={() => navigate("/legal-assistant")}
               className="p-2 rounded-md hover:bg-white/20 transition"
             >
@@ -92,7 +92,7 @@ export default function RightSideChatPanel({ open, onClose }: any) {
             </button>
 
             {/* Close */}
-            <button
+            <button aria-label="Close chat"
               onClick={onClose}
               className="p-2 rounded-md hover:bg-white/20 transition"
             >

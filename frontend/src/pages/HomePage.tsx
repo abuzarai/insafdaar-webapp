@@ -1,5 +1,3 @@
-import React from "react";
-import { MessageCircle } from "lucide-react";
 
 import Hero from "../components/Hero";
 import AboutSection from "../components/AboutSection";

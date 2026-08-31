@@ -1,4 +1,3 @@
-import React from "react";
 import { motion } from "framer-motion";
 import { Brain, Globe2, Network, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
