@@ -1,6 +1,8 @@
 import { formatStatus } from "../common/formatStatus";
 import { isErrorMessage } from "../common/messageTone";
 import React, { useEffect, useMemo, useState } from "react";
+import AuthedLink from "../common/AuthedLink";
+import AuthedAudio from "../common/AuthedAudio";
 import {
   ArrowLeft,
   RefreshCw,
@@ -1476,15 +1478,13 @@ export default function AdminClientProfile() {
                                   <td className="p-3">{new Date(d.created_at).toLocaleString()}</td>
                                   <td className="p-3">
                                     {d.file_url ? (
-                                      <a
+                                      <AuthedLink
+                                        url={d.file_url}
                                         className="font-semibold underline"
                                         style={{ color: BRAND.navy }}
-                                        href={`${API_BASE_URL}${d.file_url}`}
-                                        target="_blank"
-                                        rel="noreferrer"
                                       >
                                         View
-                                      </a>
+                                      </AuthedLink>
                                     ) : (
                                       <span className="text-xs text-slate-400">—</span>
                                     )}
@@ -1531,20 +1531,18 @@ export default function AdminClientProfile() {
                                   </span>
                                 </div>
                                 {v.audio_url ? (
-                                  <a
+                                  <AuthedLink
+                                    url={v.audio_url}
                                     className="text-xs font-semibold underline"
                                     style={{ color: BRAND.navy }}
-                                    href={`${API_BASE_URL}${v.audio_url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
                                   >
                                     Open audio
-                                  </a>
+                                  </AuthedLink>
                                 ) : null}
                               </div>
 
                               {v.audio_url ? (
-                                <audio className="w-full mt-2" controls src={`${API_BASE_URL}${v.audio_url}`} />
+                                <AuthedAudio className="w-full mt-2" src={v.audio_url} />
                               ) : (
                                 <div className="text-xs text-slate-500 mt-2">No audio URL.</div>
                               )}
@@ -1998,15 +1996,13 @@ export default function AdminClientProfile() {
                               </td>
                               <td className="p-3">
                                 {b.voucher_pdf_url ? (
-                                  <a
+                                  <AuthedLink
+                                    url={b.voucher_pdf_url}
                                     className="font-semibold underline"
                                     style={{ color: BRAND.navy }}
-                                    href={`${API_BASE_URL}${b.voucher_pdf_url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
                                   >
                                     View PDF
-                                  </a>
+                                  </AuthedLink>
                                 ) : (
                                   <span className="text-xs text-slate-400">Not generated</span>
                                 )}
@@ -2080,26 +2076,22 @@ export default function AdminClientProfile() {
                             <td className="p-3">{new Date(p.uploaded_at).toLocaleString()}</td>
                             <td className="p-3">
                               <div className="flex flex-col gap-1">
-                                <a
+                                <AuthedLink
+                                  url={p.proof_file_url}
                                   className="font-semibold underline"
                                   style={{ color: BRAND.navy }}
-                                  href={`${API_BASE_URL}${p.proof_file_url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
                                 >
                                   View proof
-                                </a>
+                                </AuthedLink>
 
                                 {p.voucher_pdf_url ? (
-                                  <a
+                                  <AuthedLink
+                                    url={p.voucher_pdf_url}
                                     className="font-semibold underline"
                                     style={{ color: BRAND.navy }}
-                                    href={`${API_BASE_URL}${p.voucher_pdf_url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
                                   >
                                     Voucher PDF
-                                  </a>
+                                  </AuthedLink>
                                 ) : null}
 
                                 {p.note ? <div className="text-xs text-slate-500">Note: {p.note}</div> : null}

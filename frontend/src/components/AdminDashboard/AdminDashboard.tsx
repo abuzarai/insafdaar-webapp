@@ -1,6 +1,7 @@
 import { formatStatus } from "../common/formatStatus";
 import { isErrorMessage } from "../common/messageTone";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import AuthedLink from "../common/AuthedLink";
 import {
   LayoutDashboard,
   Users,
@@ -2866,23 +2867,27 @@ export default function AdminDashboard() {
                             <div className="text-xs text-slate-500 mt-1">Uploaded: {new Date(p.uploaded_at).toLocaleString()}</div>
                             {p.note ? <div className="text-xs text-slate-700 mt-1">Note: {p.note}</div> : null}
                             <div className="mt-2 flex items-center gap-2 flex-wrap">
-                              <a
-                                href={`${API_BASE_URL}${p.proof_file_url}`}
-                                target="_blank"
-                                rel="noreferrer"
+                              <AuthedLink
+                                url={p.proof_file_url}
                                 className="text-xs font-semibold text-[#004aad]"
                               >
                                 Open Proof
-                              </a>
+                              </AuthedLink>
                               {p.voucher_pdf_url ? (
-                                <a
-                                  href={p.voucher_pdf_url.startsWith("http") ? p.voucher_pdf_url : `${API_BASE_URL}${p.voucher_pdf_url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-xs font-semibold text-slate-700"
-                                >
-                                  Open Voucher
-                                </a>
+                                p.voucher_pdf_url.startsWith("http") ? (
+                                  <a
+                                    href={p.voucher_pdf_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs font-semibold text-slate-700"
+                                  >
+                                    Open Voucher
+                                  </a>
+                                ) : (
+                                  <AuthedLink url={p.voucher_pdf_url} className="text-xs font-semibold text-slate-700">
+                                    Open Voucher
+                                  </AuthedLink>
+                                )
                               ) : null}
                               <button
                                 type="button"
@@ -3009,16 +3014,14 @@ export default function AdminDashboard() {
                             <div className="text-sm text-slate-600">No attachments uploaded.</div>
                           ) : (
                             (contractDetails.attachments || []).map((a) => (
-                              <a
+                              <AuthedLink
                                 key={a.id}
-                                href={`${API_BASE_URL}/uploads/contracts/${a.file_path}`}
-                                target="_blank"
-                                rel="noreferrer"
+                                url={`/uploads/contracts/${a.file_path}`}
                                 className="block rounded-xl border border-slate-200 p-3 hover:bg-slate-50"
                               >
                                 <div className="text-sm font-semibold text-slate-900 truncate">{a.file_name}</div>
                                 <div className="text-xs text-slate-500 mt-1">{a.mime_type}</div>
-                              </a>
+                              </AuthedLink>
                             ))
                           )}
                         </div>

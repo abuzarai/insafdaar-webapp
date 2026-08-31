@@ -1,5 +1,6 @@
 import { formatStatus } from "../../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
+import AuthedLink from "../../common/AuthedLink";
 import { FileText, CheckCircle2, PenSquare, RefreshCw, Paperclip, ShieldCheck } from "lucide-react";
 import { API_BASE_URL } from "../../../config";
 
@@ -279,14 +280,12 @@ export default function ContractSection() {
                       <div className="font-medium truncate">{a.file_name}</div>
                       <div className="text-xs text-slate-500">{a.mime_type} • {prettyFileSize(a.file_size)}</div>
                     </div>
-                    <a
-                      href={`${API_BASE_URL}/uploads/contracts/${a.file_path}`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <AuthedLink
+                      url={`/uploads/contracts/${a.file_path}`}
                       className="text-[#004aad] text-xs font-semibold"
                     >
                       Open
-                    </a>
+                    </AuthedLink>
                   </div>
                 ))
               )}

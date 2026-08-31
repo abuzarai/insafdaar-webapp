@@ -2,6 +2,7 @@ import { formatStatus } from "../../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
+import AuthedLink from "../../common/AuthedLink";
 import UserAvatar from "../../common/UserAvatar";
 import {
   BadgeCheck,
@@ -511,14 +512,12 @@ export default function ClientProfileSection({
                           </div>
                           <div className="text-xs text-slate-500">{formatStatus(d.status)}</div>
                         </div>
-                        <a
-                          href={`${API_BASE_URL}${d.file_url}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <AuthedLink
+                          url={d.file_url}
                           className="text-[#004aad] hover:underline font-medium"
                         >
                           View
-                        </a>
+                        </AuthedLink>
                       </li>
                     ))}
                   </ul>
@@ -1097,14 +1096,12 @@ export default function ClientProfileSection({
                         </div>
                         <div className="text-xs text-slate-500">{formatStatus(d.status)}</div>
                       </div>
-                      <a
-                        href={`${API_BASE_URL}${d.file_url}`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <AuthedLink
+                        url={d.file_url}
                         className="px-4 py-2 bg-[#004aad]/10 text-[#004aad] rounded-lg hover:bg-[#004aad]/20 transition"
                       >
                         View
-                      </a>
+                      </AuthedLink>
                     </li>
                   ))}
                 </ul>

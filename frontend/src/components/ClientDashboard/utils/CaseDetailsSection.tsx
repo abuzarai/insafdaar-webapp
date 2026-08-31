@@ -1,6 +1,7 @@
 import { formatStatus } from "../../common/formatStatus";
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import AuthedLink from "../../common/AuthedLink";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -183,11 +184,6 @@ function d(v?: string | null) {
   }
 }
 
-function absUrl(path?: string | null) {
-  if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
-}
 
 function paymentTone(status: string) {
   const s = String(status || "").toUpperCase();
@@ -522,9 +518,9 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                         <div className="text-slate-600 mt-1">No attachments.</div>
                       ) : (
                         contract.attachments.map((a) => (
-                          <a key={a.id} href={absUrl(`/uploads/contracts/${a.file_path}`) || "#"} target="_blank" rel="noreferrer" className="block text-xs font-semibold text-[#004aad] mt-1">
+                          <AuthedLink key={a.id} url={`/uploads/contracts/${a.file_path}`} className="block text-xs font-semibold text-[#004aad] mt-1">
                             {a.file_name}
-                          </a>
+                          </AuthedLink>
                         ))
                       )}
                     </div>
@@ -555,14 +551,14 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                       ) : null}
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         {v.voucher_pdf_url ? (
-                          <a href={absUrl(v.voucher_pdf_url) || "#"} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#004aad]">
+                          <AuthedLink url={v.voucher_pdf_url} className="text-xs font-semibold text-[#004aad]">
                             Open Voucher
-                          </a>
+                          </AuthedLink>
                         ) : null}
                         {v.latest_proof_file_url ? (
-                          <a href={absUrl(v.latest_proof_file_url) || "#"} target="_blank" rel="noreferrer" className="text-xs font-semibold text-slate-700">
+                          <AuthedLink url={v.latest_proof_file_url} className="text-xs font-semibold text-slate-700">
                             Open Uploaded Proof
-                          </a>
+                          </AuthedLink>
                         ) : null}
                       </div>
                     </div>
@@ -621,11 +617,11 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                     <div className="text-sm text-slate-600">No documents uploaded yet.</div>
                   ) : (
                     docs.map((drow) => (
-                      <a key={drow.id} href={absUrl(drow.file_url) || "#"} target="_blank" rel="noreferrer" className="block rounded-xl border border-slate-200 p-3 hover:bg-slate-50">
+                      <AuthedLink key={drow.id} url={drow.file_url} className="block rounded-xl border border-slate-200 p-3 hover:bg-slate-50">
                         <div className="text-sm font-semibold text-slate-900">{drow.doc_type || "Document"}</div>
                         {drow.note ? <div className="text-xs text-slate-600 mt-1">Note: {drow.note}</div> : null}
                         <div className="text-xs text-slate-500 mt-1">Uploaded: {dt(drow.uploaded_at)}</div>
-                      </a>
+                      </AuthedLink>
                     ))
                   )}
                 </div>
@@ -677,9 +673,9 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                       <div key={v.id} className="rounded-xl border border-slate-200 p-3">
                         <div className="text-xs text-slate-500">{v.language || "—"} • {dt(v.created_at)}</div>
                         {v.audio_url ? (
-                          <a href={absUrl(v.audio_url) || "#"} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#004aad] mt-1 inline-block">
+                          <AuthedLink url={v.audio_url} className="text-xs font-semibold text-[#004aad] mt-1 inline-block">
                             Open Audio
-                          </a>
+                          </AuthedLink>
                         ) : null}
                         {v.notes ? <div className="text-xs text-slate-700 mt-1">{v.notes}</div> : null}
                       </div>

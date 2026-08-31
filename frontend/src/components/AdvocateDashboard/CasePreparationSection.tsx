@@ -28,6 +28,7 @@ import {
 
 import { API_BASE_URL } from "../../config";
 import { submitDraftJobAndPoll } from "../../utils/draftJob";
+import { openAuthedFile, downloadAuthedFile } from "../../utils/authedFile";
 
 /** Strip the raw JSON blob that Gemini/backend errors often carry, keeping just the message. */
 function cleanErrorMessage(raw: string): string {
@@ -215,16 +216,6 @@ function formatMaybePhone(p?: string | null) {
   return v.length ? v : "—";
 }
 
-function resolveDocumentUrl(fileUrl?: string) {
-  const raw = String(fileUrl || "").trim();
-  if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  try {
-    return new URL(raw, API_BASE_URL).toString();
-  } catch {
-    return raw;
-  }
-}
 
 /* ================= UI Helpers ================= */
 
@@ -1133,21 +1124,13 @@ export default function CasePreparationSection() {
   };
 
   const handleOpenDoc = (fileUrl: string) => {
-    const resolved = resolveDocumentUrl(fileUrl);
-    if (!resolved) return;
-    window.open(resolved, "_blank", "noopener,noreferrer");
+    if (!fileUrl) return;
+    void openAuthedFile(fileUrl);
   };
 
   const handleDownloadDoc = (fileUrl: string) => {
-    const resolved = resolveDocumentUrl(fileUrl);
-    if (!resolved) return;
-    const a = document.createElement("a");
-    a.href = resolved;
-    a.download = "";
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    if (!fileUrl) return;
+    void downloadAuthedFile(fileUrl, "document");
   };
 
   const handleUpdateDocStatus = async (doc: DocItem, status: "NEEDS_REVIEW" | "APPROVED") => {

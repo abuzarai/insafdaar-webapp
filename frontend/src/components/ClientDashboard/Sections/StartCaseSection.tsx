@@ -2,6 +2,8 @@ import { formatStatus, formatAiEnum } from "../../common/formatStatus";
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
+import AuthedLink from "../../common/AuthedLink";
+import AuthedAudio from "../../common/AuthedAudio";
 import { VoiceInterviewPanel, InterviewResult } from "../../VoiceInterview";
 import {
   Mic,
@@ -1141,14 +1143,9 @@ export default function StartCaseSection() {
                       <span>
                         <b>{d.doc_type}</b> — {formatStatus(d.status)}
                       </span>
-                      <a
-                        className="text-[#004aad] font-semibold"
-                        href={`${API_BASE_URL}${d.file_url}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <AuthedLink className="text-[#004aad] font-semibold" url={d.file_url}>
                         View
-                      </a>
+                      </AuthedLink>
                     </li>
                   ))}
                 </ul>
@@ -1172,7 +1169,7 @@ export default function StartCaseSection() {
                         <b>{v.language}</b>{" "}
                         <span className="text-xs text-slate-500">— {new Date(v.created_at).toLocaleString()}</span>
                       </div>
-                      <audio className="w-full mt-2" controls src={`${API_BASE_URL}${v.audio_url}`} />
+                      <AuthedAudio className="w-full mt-2" src={v.audio_url} />
                     </li>
                   ))}
                 </ul>
