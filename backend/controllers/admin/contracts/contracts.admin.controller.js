@@ -2,100 +2,6 @@ import pool from "../../../db.js";
 import { CASE_STATUS, transitionCaseStatus } from "../../../utils/caseLifecycle.js";
 import { notifyClient, notifyAdvocate } from "../../../utils/notify.js";
 
-let contractTablesReady = false;
-
-async function ensureContractTables() {
-  if (contractTablesReady) return;
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_contracts (
-      id BIGSERIAL PRIMARY KEY,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      version_no INTEGER NOT NULL DEFAULT 1,
-      title TEXT,
-      contract_text TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'DRAFT',
-      drafted_by INTEGER REFERENCES public.users(id),
-      updated_by INTEGER REFERENCES public.users(id),
-      approved_by INTEGER REFERENCES public.users(id),
-      approved_at TIMESTAMPTZ,
-      approval_note TEXT,
-      rejection_note TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (case_id, version_no)
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_contract_signatures (
-      id BIGSERIAL PRIMARY KEY,
-      contract_id BIGINT NOT NULL REFERENCES public.case_contracts(id) ON DELETE CASCADE,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      signer_user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-      signer_role TEXT NOT NULL,
-      typed_full_name TEXT NOT NULL,
-      consent_checked BOOLEAN NOT NULL DEFAULT FALSE,
-      signature_note TEXT,
-      ip_address TEXT,
-      user_agent TEXT,
-      contract_version_no INTEGER,
-      canonical_text_sha256_at_sign TEXT,
-      otp_verified_at TIMESTAMPTZ,
-      otp_session_id TEXT,
-      confirmed_read_understood BOOLEAN NOT NULL DEFAULT FALSE,
-      confirmed_voluntary BOOLEAN NOT NULL DEFAULT FALSE,
-      confirmed_typed_signature BOOLEAN NOT NULL DEFAULT FALSE,
-      confirmed_reviewed_attachments BOOLEAN NOT NULL DEFAULT FALSE,
-      signed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (contract_id, signer_role)
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_contract_audit_logs (
-      id BIGSERIAL PRIMARY KEY,
-      contract_id BIGINT NOT NULL REFERENCES public.case_contracts(id) ON DELETE CASCADE,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      event_type TEXT NOT NULL,
-      actor_user_id INTEGER REFERENCES public.users(id),
-      actor_role TEXT,
-      details JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_contract_artifacts (
-      id BIGSERIAL PRIMARY KEY,
-      contract_id BIGINT NOT NULL REFERENCES public.case_contracts(id) ON DELETE CASCADE,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      version_no INTEGER NOT NULL,
-      canonical_text_sha256 TEXT NOT NULL,
-      snapshot_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-      generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (contract_id, version_no)
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_contract_attachments (
-      id BIGSERIAL PRIMARY KEY,
-      contract_id BIGINT NOT NULL REFERENCES public.case_contracts(id) ON DELETE CASCADE,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      version_no INTEGER NOT NULL,
-      file_name TEXT NOT NULL,
-      file_path TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      file_size BIGINT NOT NULL,
-      uploaded_by INTEGER REFERENCES public.users(id),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  contractTablesReady = true;
-}
-
 async function getCaseForUpdate(client, caseId) {
   const r = await client.query(
     `
@@ -214,7 +120,6 @@ function serializeContract(contract, signatures, attachments = [], artifact = nu
 
 export async function adminListContractsPendingApproval(req, res) {
   try {
-    await ensureContractTables();
     const r = await pool.query(
       `
         SELECT
@@ -245,7 +150,6 @@ export async function adminListContractsPendingApproval(req, res) {
 export async function adminGetCaseContract(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
     const caseId = Number(req.params.caseId);
     if (!caseId) return res.status(400).json({ error: "Invalid caseId" });
 
@@ -271,7 +175,6 @@ export async function adminGetCaseContract(req, res) {
 export async function adminApproveContract(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     if (!caseId) return res.status(400).json({ error: "Invalid caseId" });
@@ -402,7 +305,6 @@ export async function adminApproveContract(req, res) {
 export async function adminRejectContract(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const rejectionNote = req.body?.rejectionNote ? String(req.body.rejectionNote).trim() : "Contract changes requested";
