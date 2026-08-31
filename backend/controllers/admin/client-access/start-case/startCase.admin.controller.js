@@ -1,7 +1,7 @@
 import pool from "../../../../db.js";
 import { sendNotificationEmail } from "../../../../utils/mailer.js";
 import { CASE_STATUS, transitionCaseStatus } from "../../../../utils/caseLifecycle.js";
-import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../../../utils/interviewMatching.js";
+import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../../utils/interviewMatching.js";
 
 /** helper */
 async function getLatestActiveCaseByUserId(userId) {

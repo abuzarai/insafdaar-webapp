@@ -13,7 +13,7 @@ import {
 } from "../../../utils/contractSigning.js";
 import { sendContractSigningOtpEmail } from "../../../utils/mailer.js";
 import PDFDocument from "pdfkit";
-import { ensureContractTables, getLatestContract, getContractSignatures, getContractAttachments,
+import { getLatestContract, getContractSignatures, getContractAttachments,
   logContractEvent, serializeContract, parseSignConfirmations, assertAllSignConfirmations } from "../../../services/contractService.js";
 import { getDraftingAssistantBaseUrl, getDraftingTimeoutMs, callDraftingAssistant, fetchDraftJob } from "../../../services/draftingClient.js";
 

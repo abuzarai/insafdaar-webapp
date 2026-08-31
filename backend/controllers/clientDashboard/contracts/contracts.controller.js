@@ -10,7 +10,7 @@ import {
   verifyOtpSessionToken,
 } from "../../../utils/contractSigning.js";
 import { sendContractSigningOtpEmail } from "../../../utils/mailer.js";
-import { ensureContractTables, getLatestContract, getContractSignatures, getContractAttachments,
+import { getLatestContract, getContractSignatures, getContractAttachments,
   logContractEvent, serializeContract, parseSignConfirmations, assertAllSignConfirmations } from "../../../services/contractService.js";
 
 let contractTablesReady = false;
