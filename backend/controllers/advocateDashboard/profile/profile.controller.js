@@ -1050,3 +1050,32 @@ export async function requireVerifiedAdvocate(req, res, next) {
     return res.status(500).json({ error: "Server error" });
   }
 }
+
+/**
+ * POST /api/advocate/dashboard/profile/avatar
+ * Upload/update the advocate's profile photo (stored under /uploads/avatars).
+ */
+export async function uploadAvatar(req, res) {
+  try {
+    if (!req.file?.filename) {
+      return res.status(400).json({ error: "Avatar file is required" });
+    }
+
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    await ensureProfileRow(req.user.id);
+    await pool.query(
+      `
+      UPDATE advocate_profiles
+      SET avatar_url = $1, updated_at = NOW()
+      WHERE user_id = $2
+      `,
+      [avatarUrl, req.user.id]
+    );
+
+    return res.json({ message: "Avatar updated", avatarUrl });
+  } catch (err) {
+    console.error("uploadAvatar error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+}

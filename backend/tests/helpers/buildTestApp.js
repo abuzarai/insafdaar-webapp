@@ -6,6 +6,7 @@ import interviewRoutes from "../../routes/interviews.js";
 import legalAssistantRoutes from "../../routes/legalAssistant.routes.js";
 import billingRoutes from "../../routes/clientDashboard/billing/billing.routes.js";
 import clientProfileRoutes from "../../routes/clientProfile.js";
+import advocateProfileRoutes from "../../routes/advocateDashboard/profile/profile.routes.js";
 import webhookRoutes from "../../routes/webhooks.js";
 
 export function buildTestApp() {
@@ -19,6 +20,7 @@ export function buildTestApp() {
   app.use("/api/legal-assistant", legalAssistantRoutes);
   app.use("/api/client/dashboard/billing", billingRoutes);
   app.use("/api/client/profile", clientProfileRoutes);
+  app.use("/api/advocate/dashboard/profile", advocateProfileRoutes);
   app.use("/api/webhooks", webhookRoutes);
 
   app.use((err, _req, res, _next) => {

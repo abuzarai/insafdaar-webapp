@@ -1,5 +1,5 @@
 // AdvocateProfileSection.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { API_BASE_URL } from "../../config";
@@ -581,6 +581,31 @@ export default function AdvocateProfileSection() {
       ? `${API_BASE_URL}${uiProfile.avatarUrl}`
       : null;
 
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post(
+        `${API_BASE_URL}/api/advocate/dashboard/profile/avatar`,
+        fd,
+        { headers: { ...authHeaders(), "Content-Type": "multipart/form-data" } }
+      );
+      const avatarUrl = res.data?.avatarUrl as string | undefined;
+      if (avatarUrl) {
+        setProfile((prev) => (prev ? { ...prev, avatarUrl } : prev));
+        setMsg("Photo updated.");
+      }
+    } catch (err: any) {
+      setMsg(err?.response?.data?.error || "Failed to upload photo.");
+    }
+  };
+
   return (
     <section className="space-y-8">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -653,10 +678,17 @@ export default function AdvocateProfileSection() {
               />
             )}
 
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
             <button
               type="button"
               className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white font-semibold hover:bg-[#003b82] transition text-sm"
-              onClick={() => alert("Avatar upload endpoint can be added next (similar to client avatar).")}
+              onClick={() => avatarInputRef.current?.click()}
             >
               <Upload size={16} />
               Update Photo

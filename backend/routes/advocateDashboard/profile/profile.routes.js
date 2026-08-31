@@ -2,7 +2,7 @@ import { Router } from "express";
 // import requireAuth from "../../../middleware/auth.js";
 import { authMiddleware as requireAuth } from "../../../middleware/authMiddleware.js";
 
-import { upload } from "./profile.uploads.js";
+import { upload, avatarUpload } from "./profile.uploads.js";
 
 import {
   getFullProfile,
@@ -11,6 +11,7 @@ import {
   putAvailability,
   getDocuments,
   uploadDocument,
+  uploadAvatar,
   addWork,
   deleteWork,
   addEducation,
@@ -21,6 +22,8 @@ const router = Router();
 
 router.get("/", requireAuth, getFullProfile);
 router.patch("/", requireAuth, patchProfile);
+
+router.post("/avatar", requireAuth, avatarUpload.single("file"), uploadAvatar);
 
 router.get("/availability", requireAuth, getAvailability);
 router.put("/availability", requireAuth, putAvailability);

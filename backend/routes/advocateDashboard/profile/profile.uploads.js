@@ -34,3 +34,23 @@ export const upload = multer({
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/avatars"),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const safeExt = [".png", ".jpg", ".jpeg", ".webp"].includes(ext) ? ext : ".jpg";
+    cb(null, randomFileName(safeExt));
+  },
+});
+
+function avatarFileFilter(req, file, cb) {
+  const ok = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.mimetype);
+  cb(ok ? null : new Error("Only PNG, JPG, or WEBP images are allowed"), ok);
+}
+
+export const avatarUpload = multer({
+  storage: avatarStorage,
+  fileFilter: avatarFileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+});
