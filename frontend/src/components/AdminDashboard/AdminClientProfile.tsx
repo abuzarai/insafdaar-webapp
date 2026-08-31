@@ -506,7 +506,7 @@ export default function AdminClientProfile() {
 
   /** ✅ load active start case (DRAFT/INTAKE_STARTED) */
   const loadActiveStartCase = async () => {
-    if (!id) return;
+    if (!id) return null;
     setStartCaseMsg("");
 
     const res = await fetch(`${API_BASE_URL}/api/admin/client-access/start-case/active?userId=${id}`, {
@@ -518,13 +518,15 @@ export default function AdminClientProfile() {
       setActiveStartCaseId(null);
       setActiveStartCaseStatus(null);
       setActiveStartCaseLabel(null);
-      return;
+      return null;
     }
 
     const c = data?.case || null;
-    setActiveStartCaseId(c?.id ? Number(c.id) : null);
+    const cid = c?.id ? Number(c.id) : null;
+    setActiveStartCaseId(cid);
     setActiveStartCaseStatus(c?.status ? String(c.status) : null);
     setActiveStartCaseLabel(c?.case_display_label ? String(c.case_display_label) : null);
+    return cid;
   };
 
   const loadStartCaseDocuments = async (caseId?: number | null) => {
@@ -630,43 +632,31 @@ export default function AdminClientProfile() {
     }
   };
 
-  /** ✅ load advocates list (tries a couple common endpoints) */
+  /** ✅ load advocates list (single documented route: /api/admin/advocates) */
   const loadAdvocates = async () => {
     setAssignMsg("");
 
-    const headers = authHeaders();
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/advocates`, {
+        headers: authHeaders(),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data?.error || "Failed to load advocates");
 
-    const tryUrls = [
-      `${API_BASE_URL}/api/admin/advocates`,
-      `${API_BASE_URL}/api/admin/users?role=ADVOCATE`,
-      `${API_BASE_URL}/api/admin/users?role=advocate`,
-    ];
+      const list = Array.isArray(data?.advocates) ? data.advocates : [];
+      const normalized: AdvocateOption[] = list
+        .map((u: any) => ({
+          id: Number(u?.id),
+          name: u?.name ?? null,
+          email: String(u?.email || ""),
+        }))
+        .filter((u: AdvocateOption) => Number.isFinite(u.id) && !!u.email);
 
-    for (const url of tryUrls) {
-      try {
-        const res = await fetch(url, { headers });
-        const data = await safeJson(res);
-        if (!res.ok) continue;
-
-        const list = (data?.advocates as any[]) || (data?.users as any[]) || (data?.data as any[]) || [];
-
-        const normalized: AdvocateOption[] = list
-          .map((u: any) => ({
-            id: Number(u?.id),
-            name: u?.name ?? null,
-            email: String(u?.email || ""),
-          }))
-          .filter((u: AdvocateOption) => Number.isFinite(u.id) && !!u.email);
-
-        setAdvocates(normalized);
-        return;
-      } catch {
-        // try next
-      }
+      setAdvocates(normalized);
+    } catch (e: any) {
+      setAdvocates([]);
+      setAssignMsg(e?.message || "Could not load advocates.");
     }
-
-    setAdvocates([]);
-    setAssignMsg("Could not load advocates. Please confirm your backend advocates list API route.");
   };
 
   const refreshCommon = async () => {
@@ -687,20 +677,9 @@ export default function AdminClientProfile() {
       setStartCaseMsg("");
       setAssignMsg("");
 
-      await loadActiveStartCase();
-      // Load docs/voice after active case is known (use latest state by re-reading from response)
-      // So call active again for safety:
-      const res = await fetch(`${API_BASE_URL}/api/admin/client-access/start-case/active?userId=${id}`, {
-        headers: authHeaders(),
-      });
-      const data = await safeJson(res);
-
-      const c = res.ok ? data?.case : null;
-      const cid = c?.id ? Number(c.id) : null;
-
-      setActiveStartCaseId(cid);
-      setActiveStartCaseStatus(c?.status ? String(c.status) : null);
-      setActiveStartCaseLabel(c?.case_display_label ? String(c.case_display_label) : null);
+      // loadActiveStartCase already sets the state; reuse its return value
+      // instead of fetching the same endpoint a second time.
+      const cid = await loadActiveStartCase();
 
       await Promise.all([
         loadStartCaseDocuments(cid),

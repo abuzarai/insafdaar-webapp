@@ -47,6 +47,7 @@ import {
   listVoucherCaseOptions,
   sendVoucherToClient,
   listClientBilling,
+  listAllClientBilling,
   listPendingProofs,
   verifyProof,
   rejectProof,
@@ -72,6 +73,7 @@ router.post("/cases/:caseId/vouchers", upload.single("voucher"), createVoucherFo
 router.post("/vouchers/:billingId/send", sendVoucherToClient);
 
 // client billing overview
+router.get("/all", listAllClientBilling);
 router.get("/client/:userId", listClientBilling);
 
 // payment proofs

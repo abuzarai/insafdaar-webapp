@@ -1,4 +1,5 @@
 import { formatAiEnum } from "../common/formatStatus";
+import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { VOICE_SERVICE_URL, API_BASE_URL } from "../../config";
 import {
@@ -285,18 +286,22 @@ export default function VoiceInterviewPanel({
         try {
             addMsg("system", "Creating session...");
 
-            // Create session — EXACTLY like test_ui.html
-            const response = await fetch(`${VOICE_SERVICE_URL}/api/v1/sessions`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    client_id: clientId?.toString() || caseId?.toString() || `web_${Date.now()}`,
-                    metadata: {
-                        language: language,
-                        source: "webapp",
-                    },
-                }),
-            });
+            // Create session — EXACTLY like test_ui.html (with a hard timeout)
+            const response = await fetchWithTimeout(
+                `${VOICE_SERVICE_URL}/api/v1/sessions`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        client_id: clientId?.toString() || caseId?.toString() || `web_${Date.now()}`,
+                        metadata: {
+                            language: language,
+                            source: "webapp",
+                        },
+                    }),
+                },
+                20000
+            );
 
             if (!response.ok) throw new Error(`Voice service returned ${response.status}`);
             const data = await response.json();
@@ -323,7 +328,19 @@ export default function VoiceInterviewPanel({
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
+            // Bootstrap guard: a dead service must not leave the UI on
+            // "Connecting…" forever.
+            const bootstrapTimer = setTimeout(() => {
+                if (ws.readyState === WebSocket.CONNECTING) {
+                    ws.close(4000, "connection timeout");
+                    setStatus("error");
+                    setStatusText("Voice service did not respond. Please try again.");
+                    addMsg("system", "Connection timed out. Check if the voice service is reachable.");
+                }
+            }, 10000);
+
             ws.onopen = () => {
+                clearTimeout(bootstrapTimer);
                 // test_ui.html sends a ping on open
                 console.log("WS open, sending ping test");
                 ws.send(JSON.stringify({ type: "ping_from_client", t: Date.now() }));
@@ -343,6 +360,7 @@ export default function VoiceInterviewPanel({
             };
 
             ws.onerror = () => {
+                clearTimeout(bootstrapTimer);
                 setStatus("error");
                 setStatusText("WebSocket connection error");
                 addMsg("system", "Connection error! Check if voice service is running.");
@@ -488,17 +506,21 @@ export default function VoiceInterviewPanel({
         // Persist to the backend FIRST so the dashboard's completion gate
         // (which requires a completed voice session) sees the result.
         try {
-            await fetch(`${API_BASE_URL}/api/interviews/complete`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", ...authHeaders() },
-                body: JSON.stringify({
-                    sessionId: msg.session_id,
-                    caseId,
-                    transcript: msg.transcript,
-                    analysis: msg.analysis,
-                    audioUrl: msg.audio_url,
-                }),
-            });
+            await fetchWithTimeout(
+                `${API_BASE_URL}/api/interviews/complete`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                    body: JSON.stringify({
+                        sessionId: msg.session_id,
+                        caseId,
+                        transcript: msg.transcript,
+                        analysis: msg.analysis,
+                        audioUrl: msg.audio_url,
+                    }),
+                },
+                20000
+            );
         } catch (err) {
             console.error("Failed to persist interview result to backend", err);
         }

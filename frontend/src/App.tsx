@@ -19,6 +19,7 @@ import VerifyOtpPage from "./pages/VerifyOtpPage";
 
 import NotFoundPage from "./pages/NotFoundPage";
 import RequireAuth from "./routes/RequireAuth";
+import "./utils/http"; // axios defaults (timeout) before any page uses axios
 import AdvocateDashboardPage from "./pages/AdvocateDashboardPage";
 import ClientDashboardPage from "./pages/ClientDashboardPage";
 

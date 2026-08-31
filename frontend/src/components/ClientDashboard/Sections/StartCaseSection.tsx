@@ -177,6 +177,7 @@ export default function StartCaseSection() {
 
   const [documents, setDocuments] = useState<any[]>([]);
   const [voiceNotes, setVoiceNotes] = useState<any[]>([]);
+  const [listError, setListError] = useState<string | null>(null);
   const [matchingBusy, setMatchingBusy] = useState(false);
   const [matchingCandidates, setMatchingCandidates] = useState<MatchCandidate[]>([]);
   const [selectedAdvocateId, setSelectedAdvocateId] = useState<number | null>(null);
@@ -234,6 +235,7 @@ export default function StartCaseSection() {
   }, [description]);
 
   const refreshLists = async (id: number) => {
+    setListError(null);
     try {
       const [docsRes, voiceRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/client/dashboard/start-case/documents?caseId=${id}`, {
@@ -245,7 +247,10 @@ export default function StartCaseSection() {
       ]);
       setDocuments(docsRes.data?.documents || []);
       setVoiceNotes(voiceRes.data?.voiceNotes || []);
-    } catch { }
+    } catch (e: any) {
+      console.error("Failed to load documents/voice notes", e);
+      setListError("Could not load documents and voice notes.");
+    }
   };
 
   const loadMatching = async (id?: number | null) => {
@@ -1109,6 +1114,18 @@ export default function StartCaseSection() {
       {/* Uploaded content */}
       {caseId && (
         <div className="grid md:grid-cols-2 gap-4">
+          {listError && (
+            <div className="md:col-span-2 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <span>{listError}</span>
+              <button
+                type="button"
+                onClick={() => refreshLists(caseId)}
+                className="font-semibold underline hover:text-red-900"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
               <List size={16} className="text-[#004aad]" />

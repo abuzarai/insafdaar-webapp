@@ -109,6 +109,9 @@ export default function LegalAssistantPage() {
   const activeConversationIdRef = useRef<string | null>(null);
   const creatingConversationRef = useRef<Promise<string> | null>(null);
   const latestMessagesRef = useRef<ChatMessage[]>([WELCOME_MESSAGE]);
+  // Writes are chained so two quick turns can never land out of order
+  // (last-write-wins in submission order, not completion order).
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -229,35 +232,46 @@ export default function LegalAssistantPage() {
         }
       }
 
-      const res = await axios.put<ConversationFull>(
-        `${API_BASE_URL}/api/legal-assistant/conversations/${conversationId}`,
-        {
-          messages: updatedMessages,
-        },
-        {
-          headers: getChatHeaders(ownerId),
-        }
-      );
-
-      const updated = res.data;
-      setConversations((prev) =>
-        prev
-          .map((c) =>
-            c.id === updated.id
-              ? {
-                  id: updated.id,
-                  title: updated.title,
-                  createdAt: updated.createdAt,
-                  updatedAt: updated.updatedAt,
-                }
-              : c
-          )
-          .sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() -
-              new Date(a.updatedAt).getTime()
-          )
-      );
+      // Queue the write: concurrent turns must land in submission order, not
+      // completion order (a slow earlier PUT must not clobber a newer one).
+      persistQueueRef.current = persistQueueRef.current
+        .then(async () => {
+          // Superseded by a newer message set before this write ran?
+          if (latestMessagesRef.current !== updatedMessages) return;
+          try {
+            const res = await axios.put<ConversationFull>(
+              `${API_BASE_URL}/api/legal-assistant/conversations/${conversationId}`,
+              {
+                messages: updatedMessages,
+              },
+              {
+                headers: getChatHeaders(ownerId),
+              }
+            );
+            const updated = res.data;
+            setConversations((prev) =>
+              prev
+                .map((c) =>
+                  c.id === updated.id
+                    ? {
+                        id: updated.id,
+                        title: updated.title,
+                        createdAt: updated.createdAt,
+                        updatedAt: updated.updatedAt,
+                      }
+                    : c
+                )
+                .sort(
+                  (a, b) =>
+                    new Date(b.updatedAt).getTime() -
+                    new Date(a.updatedAt).getTime()
+                )
+            );
+          } catch (err) {
+            console.error("Failed to persist conversation", err);
+          }
+        })
+        .catch(() => {}); // keep the chain alive after individual failures
     } catch (err) {
       console.error("Failed to persist conversation", err);
     }

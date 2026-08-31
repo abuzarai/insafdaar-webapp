@@ -238,20 +238,34 @@ export default function LegalAssistantChat({
     setLoading(true);
 
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/legal-assistant/query`,
-        {
-          query: finalText,
-          history: updatedAfterUser,
-          conversationId,
-        },
-        {
-          headers: {
-            "x-chat-owner-id": ownerId,
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+      // Bounded retry: network errors and server blips (non-504 5xx) get one
+      // retry; 504/timeouts never retry (the backend already ran the RAG
+      // query — retrying would double Gemini spend).
+      let response;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          response = await axios.post(
+            `${API_BASE_URL}/api/legal-assistant/query`,
+            {
+              query: finalText,
+              history: updatedAfterUser,
+              conversationId,
+            },
+            {
+              headers: {
+                "x-chat-owner-id": ownerId,
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            }
+          );
+          break;
+        } catch (err: any) {
+          const status = err?.response?.status;
+          const retryable = !err?.response || (status >= 500 && status !== 504);
+          if (!retryable || attempt >= 1) throw err;
+          await new Promise((r) => setTimeout(r, 1500));
         }
-      );
+      }
 
       const botReply: string =
         response.data?.answer ?? "I couldn't understand the server response.";

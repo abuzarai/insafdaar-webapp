@@ -270,6 +270,30 @@ export async function sendVoucherToClient(req, res) {
  * GET /api/admin/client-access/billing/client/:userId
  * List all billing items for a client
  */
+/**
+ * Bulk billing view for the admin vouchers tab: one query instead of one
+ * request per client (the frontend previously looped clients one by one).
+ */
+export async function listAllClientBilling(req, res) {
+  const adminId = requireAdmin(req, res);
+  if (!adminId) return;
+
+  try {
+    const r = await pool.query(
+      `
+      SELECT *
+      FROM public.client_billing
+      ORDER BY created_at DESC
+      `
+    );
+
+    return res.json({ billing: r.rows });
+  } catch (e) {
+    console.error("listAllClientBilling error:", e);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 export async function listClientBilling(req, res) {
   const adminId = requireAdmin(req, res);
   if (!adminId) return;

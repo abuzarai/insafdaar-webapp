@@ -307,6 +307,18 @@ type ContractDetails = {
   };
 };
 
+type BillingRow = {
+  id?: unknown;
+  user_id?: unknown;
+  case_id?: unknown;
+  title?: unknown;
+  amount?: unknown;
+  status?: unknown;
+  due_date?: unknown;
+  voucher_pdf_url?: unknown;
+  created_at?: unknown;
+};
+
 type BillingVoucherRow = {
   id: number;
   user_id: number;
@@ -742,28 +754,25 @@ export default function AdminDashboard() {
   };
 
   const loadAllBilling = async () => {
-    const out: BillingVoucherRow[] = [];
-    for (const c of clients) {
-      const res = await fetch(`${API_BASE_URL}/api/admin/client-access/billing/client/${c.id}`, {
-        headers: authHeaders(),
-      });
-      const data = await safeJson(res);
-      if (!res.ok) continue;
-      const rows = Array.isArray(data?.billing) ? data.billing : [];
-      for (const r of rows) {
-        out.push({
-          id: Number(r.id),
-          user_id: Number(r.user_id),
-          case_id: r.case_id ? Number(r.case_id) : null,
-          title: String(r.title || "Voucher"),
-          amount: Number(r.amount || 0),
-          status: String(r.status || ""),
-          due_date: r.due_date || null,
-          voucher_pdf_url: r.voucher_pdf_url || null,
-          created_at: r.created_at,
-        });
-      }
-    }
+    // Bulk endpoint: one query for every client's billing (was N sequential
+    // per-client requests on every vouchers-tab open).
+    const res = await fetch(`${API_BASE_URL}/api/admin/client-access/billing/all`, {
+      headers: authHeaders(),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data?.error || "Failed to load billing");
+    const rows: BillingRow[] = Array.isArray(data?.billing) ? (data.billing as BillingRow[]) : [];
+    const out: BillingVoucherRow[] = rows.map((r) => ({
+      id: Number(r.id),
+      user_id: Number(r.user_id),
+      case_id: r.case_id ? Number(r.case_id) : null,
+      title: String(r.title || "Voucher"),
+      amount: Number(r.amount || 0),
+      status: String(r.status || ""),
+      due_date: r.due_date ? String(r.due_date) : null,
+      voucher_pdf_url: r.voucher_pdf_url ? String(r.voucher_pdf_url) : null,
+      created_at: String(r.created_at || ""),
+    }));
     out.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setBillingRows(out);
   };
@@ -916,7 +925,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (tab !== "overview" && tab !== "meetings" && tab !== "contracts" && tab !== "assignments") return;
-    loadWorkflowCounts().catch(() => {});
+    loadWorkflowCounts().catch((e) => console.error("workflow counts:", e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -1272,7 +1281,7 @@ export default function AdminDashboard() {
           method: "POST",
           headers,
           body: JSON.stringify({ status: "CLEAR_OVERRIDE", note: "" }),
-        }).catch(() => {});
+        }).catch((e) => console.error("manual payment status sync:", e));
       }
     } catch (e: any) {
       setMsg(`${e?.message || "Failed to reject proof"}`);
@@ -1941,7 +1950,7 @@ export default function AdminDashboard() {
                   <CardShell
                     title="Today’s Work"
                     right={
-                      <GhostBtn onClick={() => loadWorkflowCounts().catch(() => {})}>
+                      <GhostBtn onClick={() => loadWorkflowCounts().catch((e) => console.error("workflow counts:", e))}>
                         <RefreshCw size={16} /> Refresh
                       </GhostBtn>
                     }
@@ -2047,7 +2056,7 @@ export default function AdminDashboard() {
             {/* MEETINGS (render) */}
             {tab === "meetings" && (
               <AdminCaseDiscussion
-                onActionComplete={() => loadWorkflowCounts().catch(() => {})}
+                onActionComplete={() => loadWorkflowCounts().catch((e) => console.error("workflow counts:", e))}
               />
             )}
 
