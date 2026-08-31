@@ -4,6 +4,8 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import pool from "./db.js";
+import { verifyToken } from "./middleware/authMiddleware.js";
+import { uploadGuard } from "./utils/uploadGuard.js";
 
 // routes
 import clientRoutes from "./routes/client.js";
@@ -86,8 +88,8 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ serve uploaded files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// ✅ serve uploaded files (authenticated; avatars stay public)
+app.use("/uploads", uploadGuard(verifyToken));
 
 // ✅ log requests (skip uploads/static)
 app.use(

@@ -18,3 +18,12 @@ export const authMiddleware = (req, res, next) => {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 };
+
+export function verifyToken(token) {
+  if (!token) return null;
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
+}

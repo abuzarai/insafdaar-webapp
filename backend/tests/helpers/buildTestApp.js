@@ -8,6 +8,8 @@ import billingRoutes from "../../routes/clientDashboard/billing/billing.routes.j
 import clientProfileRoutes from "../../routes/clientProfile.js";
 import advocateProfileRoutes from "../../routes/advocateDashboard/profile/profile.routes.js";
 import webhookRoutes from "../../routes/webhooks.js";
+import { uploadGuard } from "../../utils/uploadGuard.js";
+import { verifyToken } from "../../middleware/authMiddleware.js";
 
 export function buildTestApp() {
   const app = express();
@@ -22,6 +24,7 @@ export function buildTestApp() {
   app.use("/api/client/profile", clientProfileRoutes);
   app.use("/api/advocate/dashboard/profile", advocateProfileRoutes);
   app.use("/api/webhooks", webhookRoutes);
+  app.use("/uploads", uploadGuard(verifyToken));
 
   app.use((err, _req, res, _next) => {
     res.status(err?.status || 500).json({
