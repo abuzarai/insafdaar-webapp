@@ -1368,11 +1368,11 @@ export default function CasePreparationSection() {
 
             <div className="mt-3">
               <label className="text-xs text-slate-500">Select template</label>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <select
                   value={template}
                   onChange={(e) => handleTemplateSelect(e.target.value as TemplateKey)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                  className="h-10 min-w-[180px] flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none"
                 >
                   <option>Plaint</option>
                   <option>Written Statement</option>
@@ -1387,7 +1387,7 @@ export default function CasePreparationSection() {
                   type="button"
                   onClick={handleGenerateDraft}
                   disabled={!details?.case?.id || actionLoading === "draft"}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white hover:bg-[#003b82] transition font-semibold text-sm disabled:opacity-60"
+                  className="inline-flex h-10 items-center gap-2 px-4 rounded-xl bg-[#004aad] text-white hover:bg-[#003b82] transition font-semibold text-sm disabled:opacity-60"
                 >
                   <PenLine size={16} />
                   {actionLoading === "draft" ? "Generating..." : "Generate"}
@@ -1397,7 +1397,7 @@ export default function CasePreparationSection() {
                   type="button"
                   onClick={handleOpenDraftStudio}
                   disabled={!details?.case?.id}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition font-semibold text-sm disabled:opacity-60"
+                  className="inline-flex h-10 items-center gap-2 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition font-semibold text-sm disabled:opacity-60"
                 >
                   <Eye size={16} className="text-[#004aad]" />
                   Draft Studio
