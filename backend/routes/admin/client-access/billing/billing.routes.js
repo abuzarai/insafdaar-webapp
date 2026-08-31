@@ -1,39 +1,3 @@
-// import express from "express";
-// import { upload } from "../../../../middleware/upload.js";
-// import { adminOnly } from "../../../../middleware/adminMiddleware.js"; 
-// // ⬆️ use the SAME admin middleware used everywhere else
-
-// import {
-//   createVoucher,
-//   sendVoucherToClient,
-//   listClientBilling,
-//   listPendingProofs,
-//   verifyProof,
-//   rejectProof, // ✅ STEP 3 ADD
-// } from "../../../../controllers/admin/client-access/billing/billing.controller.js";
-
-// const router = express.Router();
-
-// // Protect all billing admin routes
-// router.use(adminOnly);
-
-// // vouchers
-// router.post("/vouchers", upload.single("voucher"), createVoucher);
-// router.post("/vouchers/:billingId/send", sendVoucherToClient);
-
-// // client billing overview
-// router.get("/client/:userId", listClientBilling);
-
-// // payment proofs
-// router.get("/proofs/pending", listPendingProofs);
-// router.patch("/proofs/:proofId/verify", verifyProof);
-
-// // ✅ STEP 3 — reject proof
-// router.patch("/proofs/:proofId/reject", rejectProof);
-
-// export default router;
-
-
 import express from "express";
 import { upload } from "../../../../middleware/upload.js";
 

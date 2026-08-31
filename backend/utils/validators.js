@@ -1,9 +1,3 @@
-// export function isValidPakCnic(cnic) {
-//   if (!cnic) return true;
-//   return /^\d{5}-\d{7}-\d{1}$/.test(String(cnic).trim());
-// }
-
-// export function isValidPakPhone(phone) {
 //   if (!phone) return true;
 //   return /^03\d{9}$/.test(String(phone).trim());
 // }
