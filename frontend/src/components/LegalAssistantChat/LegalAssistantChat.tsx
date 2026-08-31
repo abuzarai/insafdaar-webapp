@@ -321,6 +321,16 @@ export default function LegalAssistantChat({
 
   const canSend = input.trim().length > 0 && !loading && !guestLimitReached;
 
+  // Hide the intro "Welcome" bubble once the assistant has actually replied.
+  // It stays visible while the thread holds just the greeting or a pending
+  // user message; loaded histories use their own ids and are unaffected.
+  const hasAssistantReply = messages.some(
+    (m) => m.id !== "welcome" && m.role === "assistant"
+  );
+  const visibleMessages = hasAssistantReply
+    ? messages.filter((m) => m.id !== "welcome")
+    : messages;
+
   const inputHint = useMemo(() => {
     return input.trim().length < 4
       ? "Enter to send • Shift+Enter for new line"
@@ -401,7 +411,7 @@ export default function LegalAssistantChat({
           )}
 
           {/* THREAD */}
-          {messages.map((msg) => (
+          {visibleMessages.map((msg) => (
             <div
               key={msg.id}
               className={cn(
