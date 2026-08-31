@@ -35,6 +35,41 @@ function getDraftingGenerateTimeoutMs() {
   return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : getDraftingTimeoutMs();
 }
 
+async function fetchDraftJob(jobId, timeoutMs = 20000) {
+  const draftingBase = getDraftingAssistantBaseUrl();
+  if (!draftingBase) {
+    return { ok: false, status: 500, payload: { error: "DRAFTING_ASSISTANT_URL is not configured" } };
+  }
+  const url = `${draftingBase.replace(/\/$/, "")}/draft/generate/${encodeURIComponent(jobId)}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const upstream = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "x-internal-key": process.env.INTERNAL_API_KEY || "",
+      },
+      signal: controller.signal,
+    });
+    const data = await upstream.json().catch(() => null);
+    if (!upstream.ok) {
+      return {
+        ok: false,
+        status: upstream.status,
+        payload: { error: data?.detail || data?.error || "Drafting assistant request failed" },
+      };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      return { ok: false, status: 504, payload: { error: "Drafting assistant request timed out" } };
+    }
+    return { ok: false, status: 502, payload: { error: "Drafting assistant is unreachable" } };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function callDraftingAssistant(pathname, payload, timeoutMs = getDraftingTimeoutMs()) {
   const draftingBase = getDraftingAssistantBaseUrl();
   if (!draftingBase) {
@@ -983,7 +1018,9 @@ export async function generateContractAIDraftByAdvocate(req, res) {
 
     await getAssignedCase(client, caseId, advocateId);
 
-    let upstreamCall = await callDraftingAssistant(
+    // Submit the generation as a background job: the request returns fast
+    // with a job id, and the frontend polls GET .../ai-draft/jobs/:jobId.
+    const queued = await callDraftingAssistant(
       "/draft/generate",
       {
         case_id: caseId,
@@ -992,41 +1029,61 @@ export async function generateContractAIDraftByAdvocate(req, res) {
         advocate_notes: advocateNotes,
         language,
       },
-      getDraftingGenerateTimeoutMs()
+      20000
     );
-
-    // Retry only genuine network failures; never on 504 (the drafting service
-    // keeps generating server-side — a retry would duplicate the expensive
-    // Gemini call and leave two competing generation_ids).
-    if (!upstreamCall.ok && upstreamCall.retryable) {
-      upstreamCall = await callDraftingAssistant(
-        "/draft/generate",
-        {
-          case_id: caseId,
-          advocate_id: advocateId,
-          document_type: CONTRACT_DRAFT_DOC_TYPE,
-          advocate_notes: advocateNotes,
-          language,
-        },
-        getDraftingGenerateTimeoutMs()
-      );
+    if (!queued.ok) return res.status(queued.status).json(queued.payload);
+    const jobId = queued.data?.job_id;
+    if (!jobId) {
+      return res.status(502).json({ error: "Drafting service did not return a job id" });
     }
-
-    if (!upstreamCall.ok) return res.status(upstreamCall.status).json(upstreamCall.payload);
-
-    return res.json({
-      ok: true,
-      document_type: CONTRACT_DRAFT_DOC_TYPE,
-      draft: upstreamCall.data?.draft || null,
-      generation_id: upstreamCall.data?.generation_id || null,
-      legal_references_used: Array.isArray(upstreamCall.data?.legal_references_used)
-        ? upstreamCall.data.legal_references_used
-        : [],
-    });
+    return res.json({ ok: true, job_id: jobId, status: "queued" });
   } catch (err) {
-    return res.status(err?.status || 500).json({ error: err.message || "Failed to generate draft" });
+    return res.status(err?.status || 500).json({ error: err.message || "Failed to queue draft generation" });
   } finally {
     client.release();
+  }
+}
+
+/**
+ * GET /api/advocate/dashboard/contracts/cases/:caseId/ai-draft/jobs/:jobId
+ * Polls the drafting service job; returns the generated draft when done.
+ */
+export async function getContractAIDraftStatusByAdvocate(req, res) {
+  try {
+    const advocateId = Number(req.user?.id || 0);
+    if (!advocateId) return res.status(401).json({ error: "Unauthorized" });
+
+    const jobId = String(req.params.jobId || "").trim();
+    if (!jobId) return res.status(400).json({ error: "jobId is required" });
+
+    const st = await fetchDraftJob(jobId);
+    if (!st.ok) {
+      if (st.status === 404) {
+        return res.status(410).json({ error: "Draft job expired. Please generate again." });
+      }
+      return res.status(st.status || 502).json(st.payload || { error: "Failed to check draft status" });
+    }
+
+    const body = st.data;
+    if (body.status === "succeeded") {
+      const data = body.result || {};
+      return res.json({
+        ok: true,
+        status: "succeeded",
+        document_type: data?.document_type || CONTRACT_DRAFT_DOC_TYPE,
+        draft: data?.draft || null,
+        generation_id: data?.generation_id || null,
+        legal_references_used: Array.isArray(data?.legal_references_used)
+          ? data.legal_references_used
+          : [],
+      });
+    }
+    if (body.status === "failed") {
+      return res.status(502).json({ error: body.error || "Draft generation failed" });
+    }
+    return res.json({ ok: true, status: body.status || "queued" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Failed to check draft status" });
   }
 }
 

@@ -116,6 +116,43 @@ const DEFAULT_CHECKLIST = [
   { doc_key: "POWER_OF_ATTORNEY", title: "Power of Attorney", is_required: false },
 ];
 
+/* ================= Helpers ================= */
+
+async function fetchDraftJob(jobId, timeoutMs = 20000) {
+  const draftingBase = getDraftingAssistantBaseUrl();
+  if (!draftingBase) {
+    return { ok: false, status: 500, payload: { error: "DRAFTING_ASSISTANT_URL is not configured" } };
+  }
+  const url = `${draftingBase.replace(/\/$/, "")}/draft/generate/${encodeURIComponent(jobId)}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const upstream = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "x-internal-key": process.env.INTERNAL_API_KEY || "",
+      },
+      signal: controller.signal,
+    });
+    const data = await upstream.json().catch(() => null);
+    if (!upstream.ok) {
+      return {
+        ok: false,
+        status: upstream.status,
+        payload: { error: data?.detail || data?.error || "Drafting assistant request failed" },
+      };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      return { ok: false, status: 504, payload: { error: "Drafting assistant request timed out" } };
+    }
+    return { ok: false, status: 502, payload: { error: "Drafting assistant is unreachable" } };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /* ================= Controllers ================= */
 
 function assertCaseActiveStatus(caseStatus) {
@@ -729,16 +766,9 @@ export async function generatePreparationAIDraft(req, res) {
     const access = await assertCaseAssignedAndActive(caseId, advocateId);
     if (!access.ok) return res.status(access.status).json(access.payload);
 
-    const startedAt = Date.now();
-    const generateTimeoutMs = getDraftingGenerateTimeoutMs();
-    console.info("[AI-DRAFT] generate:start", {
-      caseId: Number(caseId),
-      advocateId: Number(advocateId),
-      documentType,
-      timeoutMs: generateTimeoutMs,
-    });
-
-    let upstreamCall = await callDraftingAssistant(
+    // Submit the generation as a background job: the request returns fast
+    // with a job id, and the frontend polls GET .../ai-draft/jobs/:jobId.
+    const queued = await callDraftingAssistant(
       "/draft/generate",
       {
         case_id: Number(caseId),
@@ -748,55 +778,66 @@ export async function generatePreparationAIDraft(req, res) {
         language,
       },
       true,
-      generateTimeoutMs
+      20000
     );
-
-    // Retry only genuine network failures (drafting container down / restarted).
-    // Timeouts (504) never retry: the drafting service keeps generating
-    // server-side, so a retry would double Gemini spend and produce two
-    // competing generation_ids.
-    if (!upstreamCall.ok && upstreamCall.retryable) {
-      console.warn("[AI-DRAFT] generate:unreachable-first-attempt", {
-        caseId: Number(caseId),
-        advocateId: Number(advocateId),
-        documentType,
-      });
-      upstreamCall = await callDraftingAssistant(
-        "/draft/generate",
-        {
-          case_id: Number(caseId),
-          advocate_id: Number(advocateId),
-          document_type: documentType,
-          advocate_notes: advocateNotes,
-          language,
-        },
-        true,
-        generateTimeoutMs
-      );
+    if (!queued.ok) return res.status(queued.status).json(queued.payload);
+    const jobId = queued.data?.job_id;
+    if (!jobId) {
+      return res.status(502).json({ error: "Drafting service did not return a job id" });
     }
-    if (!upstreamCall.ok) return res.status(upstreamCall.status).json(upstreamCall.payload);
-
-    const data = upstreamCall.data;
-
-    console.info("[AI-DRAFT] generate:ok", {
+    console.info("[AI-DRAFT] generate:queued", {
       caseId: Number(caseId),
       advocateId: Number(advocateId),
       documentType,
-      durationMs: Date.now() - startedAt,
-      generationId: data?.generation_id || null,
+      jobId,
     });
-
-    return res.json({
-      ok: true,
-      document_type: data?.document_type || documentType,
-      draft: data?.draft || null,
-      generation_id: data?.generation_id || null,
-      legal_references_used: Array.isArray(data?.legal_references_used)
-        ? data.legal_references_used
-        : [],
-    });
+    return res.json({ ok: true, job_id: jobId, status: "queued" });
   } catch (err) {
     console.error("generatePreparationAIDraft:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
+ * GET /api/advocate/dashboard/case-preparation/:caseId/ai-draft/jobs/:jobId
+ * Polls the drafting service job; returns the generated draft when done.
+ */
+export async function getPreparationAIDraftStatus(req, res) {
+  try {
+    const advocateId = req.user?.id;
+    if (!advocateId) return res.status(401).json({ error: "Unauthorized" });
+
+    const jobId = String(req.params.jobId || "").trim();
+    if (!jobId) return res.status(400).json({ error: "jobId is required" });
+
+    const st = await fetchDraftJob(jobId);
+    if (!st.ok) {
+      if (st.status === 404) {
+        return res.status(410).json({ error: "Draft job expired. Please generate again." });
+      }
+      return res.status(st.status || 502).json(st.payload || { error: "Failed to check draft status" });
+    }
+
+    const body = st.data;
+    if (body.status === "succeeded") {
+      const data = body.result || {};
+      return res.json({
+        ok: true,
+        status: "succeeded",
+        document_type: data?.document_type || "",
+        draft: data?.draft || null,
+        generation_id: data?.generation_id || null,
+        legal_references_used: Array.isArray(data?.legal_references_used)
+          ? data.legal_references_used
+          : [],
+      });
+    }
+    if (body.status === "failed") {
+      return res.status(502).json({ error: body.error || "Draft generation failed" });
+    }
+    return res.json({ ok: true, status: body.status || "queued" });
+  } catch (err) {
+    console.error("getPreparationAIDraftStatus:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }

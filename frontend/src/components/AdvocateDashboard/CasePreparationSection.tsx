@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { API_BASE_URL } from "../../config";
+import { submitDraftJobAndPoll } from "../../utils/draftJob";
 
 /** Strip the raw JSON blob that Gemini/backend errors often carry, keeping just the message. */
 function cleanErrorMessage(raw: string): string {
@@ -623,32 +624,26 @@ export default function CasePreparationSection() {
       try {
         const mapped = TEMPLATE_DOC_MAP[template];
 
-        const res = await fetch(`${ADV_PREP_BASE}/${encodeURIComponent(details.case.id)}/ai-draft/generate`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({
+        setDraftNotice("Generating draft… this can take a couple of minutes.");
+        const statusData = await submitDraftJobAndPoll({
+          submitUrl: `${ADV_PREP_BASE}/${encodeURIComponent(details.case.id)}/ai-draft/generate`,
+          body: {
             document_type: mapped,
             advocate_notes: noteToClient.trim(),
             language: "English",
-          }),
+          },
+          statusUrlFor: (jobId) =>
+            `${ADV_PREP_BASE}/${encodeURIComponent(details.case.id)}/ai-draft/jobs/${encodeURIComponent(jobId)}`,
+          headers: authHeaders(),
         });
-
-        const data = await safeJson<{
-          error?: string;
-          draft?: DraftContent;
-          generation_id?: string;
-          document_type?: string;
-        }>(res);
-
-        if (!res.ok) throw new Error(data?.error || "Failed to generate AI draft.");
 
         setDraftResult({
-          generationId: String(data?.generation_id || ""),
-          documentType: String(data?.document_type || mapped),
-          draft: data?.draft || null,
+          generationId: String(statusData?.generation_id || ""),
+          documentType: String(statusData?.document_type || mapped),
+          draft: statusData?.draft || null,
         });
-        setDraftEditor(data?.draft || null);
-        setDraftSelectedSectionId(data?.draft?.sections?.[0]?.id || "");
+        setDraftEditor(statusData?.draft || null);
+        setDraftSelectedSectionId(statusData?.draft?.sections?.[0]?.id || "");
         setDraftRewriteInstruction("");
         setDraftDirty(false);
         setAutoSaveStatus("idle");

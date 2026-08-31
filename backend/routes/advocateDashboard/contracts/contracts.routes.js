@@ -9,6 +9,7 @@ import {
   signCaseContractByAdvocate,
   getLatestContractAIDraftByAdvocate,
   generateContractAIDraftByAdvocate,
+  getContractAIDraftStatusByAdvocate,
   regenerateContractAIDraftSectionByAdvocate,
   saveContractAIDraftByAdvocate,
   exportContractAIDraftDocxByAdvocate,
@@ -31,6 +32,7 @@ router.post("/cases/:caseId/sign/verify-otp", verifyContractSigningOtpByAdvocate
 router.post("/cases/:caseId/sign", signCaseContractByAdvocate);
 router.get("/cases/:caseId/ai-draft/latest", getLatestContractAIDraftByAdvocate);
 router.post("/cases/:caseId/ai-draft/generate", generateContractAIDraftByAdvocate);
+router.get("/cases/:caseId/ai-draft/jobs/:jobId", getContractAIDraftStatusByAdvocate);
 router.post("/cases/:caseId/ai-draft/regenerate-section", regenerateContractAIDraftSectionByAdvocate);
 router.post("/cases/:caseId/ai-draft/save", saveContractAIDraftByAdvocate);
 router.post("/cases/:caseId/ai-draft/export/docx", exportContractAIDraftDocxByAdvocate);

@@ -2,6 +2,7 @@ import { formatStatus } from "../common/formatStatus";
 import React, { useEffect, useMemo, useState } from "react";
 import { FileText, PenSquare, CheckCircle2, RefreshCw, Paperclip, ShieldCheck, Sparkles, Save, XCircle, Plus, Download, AlertTriangle } from "lucide-react";
 import { API_BASE_URL } from "../../config";
+import { submitDraftJobAndPoll } from "../../utils/draftJob";
 
 function isQuotaError(raw: string): boolean {
   return /429|RESOURCE_EXHAUSTED|quota|Quota|rate.?limit/i.test(raw || "");
@@ -270,22 +271,22 @@ export default function ContractSection() {
     if (!selectedNumericCaseId) return;
     try {
       setDraftBusy("generate");
-      setDraftNotice("");
-      const res = await fetch(`${API_BASE_URL}/api/advocate/dashboard/contracts/cases/${selectedNumericCaseId}/ai-draft/generate`, {
-        method: "POST",
+      setDraftNotice("Generating draft… this can take a couple of minutes.");
+      const statusData = await submitDraftJobAndPoll({
+        submitUrl: `${API_BASE_URL}/api/advocate/dashboard/contracts/cases/${selectedNumericCaseId}/ai-draft/generate`,
+        body: { advocate_notes: aiNotes.trim(), language: "English" },
+        statusUrlFor: (jobId) =>
+          `${API_BASE_URL}/api/advocate/dashboard/contracts/cases/${selectedNumericCaseId}/ai-draft/jobs/${encodeURIComponent(jobId)}`,
         headers: authHeaders(true),
-        body: JSON.stringify({ advocate_notes: aiNotes.trim(), language: "English" }),
       });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data?.error || "Failed to generate AI draft");
 
       setDraftResult({
-        generationId: String(data?.generation_id || ""),
-        documentType: String(data?.document_type || "Client-Lawyer Contract"),
-        draft: data?.draft || null,
+        generationId: String(statusData?.generation_id || ""),
+        documentType: String(statusData?.document_type || "Client-Lawyer Contract"),
+        draft: statusData?.draft || null,
       });
-      setDraftEditor(data?.draft || null);
-      setSelectedSectionId(data?.draft?.sections?.[0]?.id || "");
+      setDraftEditor(statusData?.draft || null);
+      setSelectedSectionId(statusData?.draft?.sections?.[0]?.id || "");
       setDraftDirty(false);
       setDraftNotice("AI contract draft generated.");
     } catch (e: any) {

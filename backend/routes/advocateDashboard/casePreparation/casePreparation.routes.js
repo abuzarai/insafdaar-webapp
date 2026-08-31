@@ -9,6 +9,7 @@ import {
   requestMissingDocsEmail,
   uploadPreparationCaseDocument,
   generatePreparationAIDraft,
+  getPreparationAIDraftStatus,
   regeneratePreparationAIDraftSection,
   savePreparationAIDraft,
   exportPreparationAIDraftDocx,
@@ -85,6 +86,7 @@ router.post("/:caseId/request-docs", requestMissingDocsEmail);
  * /api/advocate/dashboard/case-preparation/:caseId/ai-draft/generate
  */
 router.post("/:caseId/ai-draft/generate", generatePreparationAIDraft);
+router.get("/:caseId/ai-draft/jobs/:jobId", getPreparationAIDraftStatus);
 router.post("/:caseId/ai-draft/regenerate-section", regeneratePreparationAIDraftSection);
 router.post("/:caseId/ai-draft/save", savePreparationAIDraft);
 router.post("/:caseId/ai-draft/export/docx", exportPreparationAIDraftDocx);
