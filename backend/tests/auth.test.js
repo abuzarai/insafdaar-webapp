@@ -181,7 +181,6 @@ describe("Auth and registration API tests", () => {
   test("test_verify_otp_success", async () => {
     const otpHash = await bcrypt.hash("123456", 10);
     dbQueryMock
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // ensure lockout columns
       .mockResolvedValueOnce({ rows: [{ id: 23, email_verified: false }], rowCount: 1 })
       .mockResolvedValueOnce({
         rows: [

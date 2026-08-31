@@ -926,21 +926,6 @@ export async function getPreparationLatestAIDraft(req, res) {
     const access = await assertCaseAssignedAndActive(caseId, advocateId);
     if (!access.ok) return res.status(access.status).json(access.payload);
 
-    await pool.query(
-      `
-      CREATE TABLE IF NOT EXISTS public.draft_sessions (
-        id SERIAL PRIMARY KEY,
-        case_id INTEGER NOT NULL,
-        document_type TEXT NOT NULL,
-        generation_id TEXT UNIQUE NOT NULL,
-        draft_json JSONB NOT NULL,
-        advocate_id INTEGER NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
-      )
-      `
-    );
-
     const values = [Number(caseId), Number(advocateId)];
     let where = "case_id = $1 AND advocate_id = $2";
     if (documentType) {

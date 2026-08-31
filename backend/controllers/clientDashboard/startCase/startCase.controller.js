@@ -4,55 +4,6 @@ import { CASE_STATUS, transitionCaseStatus } from "../../../utils/caseLifecycle.
 import { enqueueDocumentExtractionJobs } from "../../../services/documentExtraction.service.js";
 import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../utils/interviewMatching.js";
 
-let matchingTablesReady = false;
-let preferenceColumnsReady = false;
-
-async function ensureMatchingTables() {
-  if (matchingTablesReady) return;
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_matching_runs (
-      id BIGSERIAL PRIMARY KEY,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      triggered_by INTEGER REFERENCES public.users(id),
-      shortlist_size INTEGER NOT NULL DEFAULT 5,
-      input_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_match_candidates (
-      id BIGSERIAL PRIMARY KEY,
-      run_id BIGINT NOT NULL REFERENCES public.case_matching_runs(id) ON DELETE CASCADE,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      advocate_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-      rank_position INTEGER NOT NULL,
-      total_score NUMERIC(6,2) NOT NULL,
-      score_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb,
-      reasons TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (run_id, advocate_id),
-      UNIQUE (run_id, rank_position)
-    )
-  `);
-
-  matchingTablesReady = true;
-}
-
-async function ensurePreferenceColumns() {
-  if (preferenceColumnsReady) return;
-
-  await pool.query(`
-    ALTER TABLE public.client_cases
-      ADD COLUMN IF NOT EXISTS preferred_advocate_id INTEGER REFERENCES public.users(id),
-      ADD COLUMN IF NOT EXISTS preferred_advocate_selected_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS preferred_match_run_id BIGINT REFERENCES public.case_matching_runs(id)
-  `);
-
-  preferenceColumnsReady = true;
-}
-
 async function loadCaseWithOwnership(client, caseId, userId) {
   const r = await client.query(
     `
@@ -576,7 +527,6 @@ export async function listCaseVoiceNotes(req, res) {
  */
 export async function markInterviewCompleteForCase(req, res) {
   try {
-    await ensurePreferenceColumns();
 
     const userId = Number(req.user.id);
     const caseId = Number(req.body?.caseId);
@@ -638,8 +588,6 @@ export async function markInterviewCompleteForCase(req, res) {
 export async function getCaseMatchingForClient(req, res) {
   const client = await pool.connect();
   try {
-    await ensureMatchingTables();
-    await ensurePreferenceColumns();
 
     const userId = Number(req.user.id);
     const caseId = Number(req.query.caseId);
@@ -725,8 +673,6 @@ export async function getCaseMatchingForClient(req, res) {
 export async function selectPreferredAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureMatchingTables();
-    await ensurePreferenceColumns();
 
     const userId = Number(req.user.id);
     const caseId = Number(req.body?.caseId);

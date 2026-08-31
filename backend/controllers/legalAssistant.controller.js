@@ -1,9 +1,6 @@
 import { randomUUID } from "crypto";
 import pool from "../db.js";
 
-let conversationsTableReady = false;
-let guestUsageTableReady = false;
-
 function getRagBaseUrl() {
   return process.env.LEGAL_RAG_API_URL || "";
 }
@@ -66,44 +63,7 @@ function deriveTitle(messages, fallback = "New Conversation") {
   return firstUser.content.slice(0, 60).trim() || fallback;
 }
 
-async function ensureConversationsTable() {
-  if (conversationsTableReady) return;
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS legal_assistant_conversations (
-      id TEXT PRIMARY KEY,
-      owner_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      messages JSONB NOT NULL DEFAULT '[]'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_legal_assistant_conversations_owner_updated
-    ON legal_assistant_conversations (owner_id, updated_at DESC)
-  `);
-
-  conversationsTableReady = true;
-}
-
-async function ensureGuestUsageTable() {
-  if (guestUsageTableReady) return;
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS legal_assistant_guest_usage (
-      owner_id TEXT PRIMARY KEY,
-      prompt_count INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  guestUsageTableReady = true;
-}
-
 async function getGuestPromptCount(ownerId) {
-  await ensureGuestUsageTable();
   const result = await pool.query(
     `SELECT prompt_count FROM legal_assistant_guest_usage WHERE owner_id = $1`,
     [ownerId]
@@ -113,7 +73,6 @@ async function getGuestPromptCount(ownerId) {
 }
 
 async function incrementGuestPromptCount(ownerId) {
-  await ensureGuestUsageTable();
   await pool.query(
     `
       INSERT INTO legal_assistant_guest_usage (owner_id, prompt_count, updated_at)
@@ -239,8 +198,6 @@ export async function listConversations(req, res) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
 
-    await ensureConversationsTable();
-
     const result = await pool.query(
       `
         SELECT id, title, created_at, updated_at
@@ -271,8 +228,6 @@ export async function getConversation(req, res) {
     if (!ownerId) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
-
-    await ensureConversationsTable();
 
     const result = await pool.query(
       `
@@ -307,8 +262,6 @@ export async function createConversation(req, res) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
 
-    await ensureConversationsTable();
-
     const messages = sanitizeMessages(req.body?.messages);
     const title = String(req.body?.title || deriveTitle(messages)).slice(0, 120).trim() || "New Conversation";
     const id = randomUUID();
@@ -341,8 +294,6 @@ export async function updateConversation(req, res) {
     if (!ownerId) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
-
-    await ensureConversationsTable();
 
     const messages = sanitizeMessages(req.body?.messages);
     const title = deriveTitle(messages);
@@ -383,8 +334,6 @@ export async function deleteConversation(req, res) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
 
-    await ensureConversationsTable();
-
     const result = await pool.query(
       `
         DELETE FROM legal_assistant_conversations
@@ -410,8 +359,6 @@ export async function clearConversations(req, res) {
     if (!ownerId) {
       return res.status(400).json({ error: "x-chat-owner-id header is required" });
     }
-
-    await ensureConversationsTable();
 
     const result = await pool.query(
       `

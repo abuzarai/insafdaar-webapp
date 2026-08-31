@@ -1,4 +1,3 @@
-let lifecycleTablesReady = false;
 
 export const CASE_STATUS = {
   DRAFT: "DRAFT",
@@ -39,31 +38,6 @@ function isTransitionAllowed(fromStatus, toStatus) {
   return (ALLOWED_TRANSITIONS[fromStatus] || []).includes(toStatus);
 }
 
-async function ensureLifecycleTables(client) {
-  if (lifecycleTablesReady) return;
-
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS public.case_lifecycle_events (
-      id BIGSERIAL PRIMARY KEY,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      from_status TEXT,
-      to_status TEXT NOT NULL,
-      actor_user_id INTEGER REFERENCES public.users(id),
-      actor_role TEXT,
-      reason TEXT,
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS idx_case_lifecycle_events_case_created
-      ON public.case_lifecycle_events(case_id, created_at DESC)
-  `);
-
-  lifecycleTablesReady = true;
-}
-
 export async function getCaseForUpdate(client, caseId) {
   const r = await client.query(
     `
@@ -92,8 +66,6 @@ export async function transitionCaseStatus(client, options) {
   if (!targetStatus) {
     throw new Error("toStatus is required");
   }
-
-  await ensureLifecycleTables(client);
 
   const caseRow = await getCaseForUpdate(client, caseId);
   if (!caseRow) {

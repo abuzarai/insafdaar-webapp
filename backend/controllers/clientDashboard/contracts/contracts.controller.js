@@ -15,6 +15,7 @@ import { ensureContractTables, getLatestContract, getContractSignatures, getCont
 
 let contractTablesReady = false;
 
+
 async function getAccessibleCase(client, caseId, user) {
   const role = String(user?.role || "").toUpperCase();
   const userId = Number(user?.id || 0);
@@ -44,10 +45,16 @@ async function getAccessibleCase(client, caseId, user) {
   throw err;
 }
 
+
+
+
+
+
+
+
 export async function getCaseContract(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     if (!caseId) return res.status(400).json({ error: "Invalid caseId" });
@@ -72,7 +79,6 @@ export async function getCaseContract(req, res) {
 export async function requestContractSigningOtpByClient(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const role = String(req.user?.role || "").toUpperCase();
     if (role !== "CLIENT") return res.status(403).json({ error: "Forbidden" });
@@ -146,7 +152,6 @@ export async function requestContractSigningOtpByClient(req, res) {
 export async function verifyContractSigningOtpByClient(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const role = String(req.user?.role || "").toUpperCase();
     if (role !== "CLIENT") return res.status(403).json({ error: "Forbidden" });
@@ -235,7 +240,6 @@ export async function verifyContractSigningOtpByClient(req, res) {
 export async function signCaseContractByClient(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const role = String(req.user?.role || "").toUpperCase();
     if (role !== "CLIENT") return res.status(403).json({ error: "Forbidden" });

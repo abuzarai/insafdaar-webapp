@@ -13,9 +13,9 @@ import {
 } from "../../../utils/contractSigning.js";
 import { sendContractSigningOtpEmail } from "../../../utils/mailer.js";
 import PDFDocument from "pdfkit";
-import { getDraftingAssistantBaseUrl, getDraftingTimeoutMs, callDraftingAssistant, fetchDraftJob } from "../../../services/draftingClient.js";
 import { ensureContractTables, getLatestContract, getContractSignatures, getContractAttachments,
   logContractEvent, serializeContract, parseSignConfirmations, assertAllSignConfirmations } from "../../../services/contractService.js";
+import { getDraftingAssistantBaseUrl, getDraftingTimeoutMs, callDraftingAssistant, fetchDraftJob } from "../../../services/draftingClient.js";
 
 const CONTRACT_DRAFT_DOC_TYPE = "Client-Lawyer Contract";
 
@@ -51,7 +51,6 @@ async function getAssignedCase(client, caseId, advocateId) {
 export async function getCaseContractForAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
     if (!caseId) return res.status(400).json({ error: "Invalid caseId" });
@@ -75,7 +74,6 @@ export async function getCaseContractForAdvocate(req, res) {
 export async function upsertCaseContractByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
@@ -191,7 +189,6 @@ export async function upsertCaseContractByAdvocate(req, res) {
 export async function uploadCaseContractAttachmentByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
     if (!caseId) return res.status(400).json({ error: "Invalid caseId" });
@@ -253,7 +250,6 @@ export async function uploadCaseContractAttachmentByAdvocate(req, res) {
 export async function requestContractSigningOtpByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
     const role = String(req.user?.role || "").toUpperCase();
@@ -325,7 +321,6 @@ export async function requestContractSigningOtpByAdvocate(req, res) {
 export async function verifyContractSigningOtpByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
     const advocateId = Number(req.user?.id || 0);
     const role = String(req.user?.role || "").toUpperCase();
     if (role !== "ADVOCATE") return res.status(403).json({ error: "Forbidden" });
@@ -412,7 +407,6 @@ export async function verifyContractSigningOtpByAdvocate(req, res) {
 export async function signCaseContractByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
@@ -628,27 +622,11 @@ export async function signCaseContractByAdvocate(req, res) {
 export async function getLatestContractAIDraftByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
     if (!caseId) return res.status(400).json({ error: "Invalid caseId" });
 
     await getAssignedCase(client, caseId, advocateId);
-
-    await client.query(
-      `
-      CREATE TABLE IF NOT EXISTS public.draft_sessions (
-        id SERIAL PRIMARY KEY,
-        case_id INTEGER NOT NULL,
-        document_type TEXT NOT NULL,
-        generation_id TEXT UNIQUE NOT NULL,
-        draft_json JSONB NOT NULL,
-        advocate_id INTEGER NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
-      )
-      `
-    );
 
     const q = await client.query(
       `
@@ -683,7 +661,6 @@ export async function getLatestContractAIDraftByAdvocate(req, res) {
 export async function generateContractAIDraftByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
@@ -766,7 +743,6 @@ export async function getContractAIDraftStatusByAdvocate(req, res) {
 export async function regenerateContractAIDraftSectionByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
@@ -815,7 +791,6 @@ export async function regenerateContractAIDraftSectionByAdvocate(req, res) {
 export async function saveContractAIDraftByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
@@ -849,7 +824,6 @@ export async function saveContractAIDraftByAdvocate(req, res) {
 export async function exportContractAIDraftDocxByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);
@@ -911,7 +885,6 @@ export async function exportContractAIDraftDocxByAdvocate(req, res) {
 export async function exportContractAIDraftPdfByAdvocate(req, res) {
   const client = await pool.connect();
   try {
-    await ensureContractTables();
 
     const caseId = Number(req.params.caseId);
     const advocateId = Number(req.user?.id || 0);

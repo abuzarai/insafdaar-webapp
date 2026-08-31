@@ -174,21 +174,6 @@ router.post("/save", async (req, res) => {
 
     await pool.query(
       `
-      CREATE TABLE IF NOT EXISTS public.draft_sessions (
-        id SERIAL PRIMARY KEY,
-        case_id INTEGER NOT NULL,
-        document_type TEXT NOT NULL,
-        generation_id TEXT UNIQUE NOT NULL,
-        draft_json JSONB NOT NULL,
-        advocate_id INTEGER NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
-      )
-      `
-    );
-
-    await pool.query(
-      `
       INSERT INTO public.draft_sessions
         (case_id, document_type, generation_id, draft_json, advocate_id)
       VALUES ($1, $2, $3, $4::jsonb, $5)

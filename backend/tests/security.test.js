@@ -237,7 +237,6 @@ describe("P1 security boundaries", () => {
 
     test("a wrong OTP increments the attempt counter", async () => {
       dbQueryMock
-        .mockResolvedValueOnce({ rows: [] }) // ensure lockout columns (first call)
         .mockResolvedValueOnce({ rows: [{ id: 1, email_verified: false }] }) // user
         .mockResolvedValueOnce({ rows: [otpRow({ attempts: 1 })] }) // latest otp
         .mockResolvedValueOnce({ rows: [] }); // increment attempts

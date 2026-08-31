@@ -39,7 +39,6 @@ describe("#20 interview_completed self-mark gate", () => {
 
   test("rejects marking complete when no completed voice session exists", async () => {
     dbQueryMock
-      .mockResolvedValueOnce({ rows: [] }) // ensurePreferenceColumns (ALTER)
       .mockResolvedValueOnce({ rows: [] }); // session gate: none found
 
     const res = await request(app)
@@ -49,11 +48,10 @@ describe("#20 interview_completed self-mark gate", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INTERVIEW_NOT_COMPLETED");
-    expect(dbQueryMock.mock.calls[1][0]).toMatch(/case_intake_sessions/);
+    expect(dbQueryMock.mock.calls[0][0]).toMatch(/case_intake_sessions/);
   });
 
   test("allows marking complete only after a completed session is persisted", async () => {
-    // ensurePreferenceColumns already ran in the first test (module cache).
     dbQueryMock
       .mockResolvedValueOnce({ rows: [{ done: 1 }] }) // session gate: completed session exists
       .mockResolvedValueOnce({
@@ -72,7 +70,6 @@ describe("#20 interview_completed self-mark gate", () => {
 
   test("a session without transcript/analysis never satisfies the gate", async () => {
     dbQueryMock
-      .mockResolvedValueOnce({ rows: [] }) // ensurePreferenceColumns (ALTER)
       .mockResolvedValueOnce({ rows: [] }); // gate: session row exists but was never populated
 
     const res = await request(app)

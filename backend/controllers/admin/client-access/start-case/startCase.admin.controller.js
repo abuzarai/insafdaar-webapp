@@ -1,42 +1,7 @@
 import pool from "../../../../db.js";
 import { sendNotificationEmail } from "../../../../utils/mailer.js";
 import { CASE_STATUS, transitionCaseStatus } from "../../../../utils/caseLifecycle.js";
-import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../utils/interviewMatching.js";
-
-let matchingTablesReady = false;
-
-async function ensureMatchingTables() {
-  if (matchingTablesReady) return;
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_matching_runs (
-      id BIGSERIAL PRIMARY KEY,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      triggered_by INTEGER REFERENCES public.users(id),
-      shortlist_size INTEGER NOT NULL DEFAULT 5,
-      input_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.case_match_candidates (
-      id BIGSERIAL PRIMARY KEY,
-      run_id BIGINT NOT NULL REFERENCES public.case_matching_runs(id) ON DELETE CASCADE,
-      case_id INTEGER NOT NULL REFERENCES public.client_cases(id) ON DELETE CASCADE,
-      advocate_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-      rank_position INTEGER NOT NULL,
-      total_score NUMERIC(6,2) NOT NULL,
-      score_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb,
-      reasons TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (run_id, advocate_id),
-      UNIQUE (run_id, rank_position)
-    )
-  `);
-
-  matchingTablesReady = true;
-}
+import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../../../utils/interviewMatching.js";
 
 /** helper */
 async function getLatestActiveCaseByUserId(userId) {
@@ -148,7 +113,6 @@ export async function adminGetCaseVoiceNotes(req, res) {
  */
 export async function adminListAssignmentQueue(req, res) {
   try {
-    await ensureMatchingTables();
 
     const r = await pool.query(
       `
@@ -239,7 +203,6 @@ export async function adminListAssignmentQueue(req, res) {
 export async function adminRunCaseMatching(req, res) {
   const client = await pool.connect();
   try {
-    await ensureMatchingTables();
 
     const caseId = Number(req.body?.caseId);
     const shortlistSizeRaw = Number(req.body?.shortlistSize || 5);
@@ -432,7 +395,6 @@ export async function adminRunCaseMatching(req, res) {
  */
 export async function adminListCaseMatchCandidates(req, res) {
   try {
-    await ensureMatchingTables();
 
     const caseId = Number(req.query.caseId);
     if (!caseId) return res.status(400).json({ error: "caseId is required" });

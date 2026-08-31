@@ -7,17 +7,6 @@ const router = express.Router();
 const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
 const OTP_LOCK_MINUTES = Number(process.env.OTP_LOCK_MINUTES || 10);
 
-let otpGuardReady = false;
-async function ensureOtpGuardColumns() {
-  if (otpGuardReady) return;
-  await pool.query(
-    `ALTER TABLE email_otps
-       ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0,
-       ADD COLUMN IF NOT EXISTS locked_until timestamp without time zone`
-  );
-  otpGuardReady = true;
-}
-
 /**
  * POST /api/auth/verify-otp
  * body: { email, otp }
@@ -29,8 +18,6 @@ router.post("/verify-otp", async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({ error: "Email and OTP are required" });
     }
-
-    await ensureOtpGuardColumns();
 
     // find user
     const userRes = await pool.query("SELECT id, email_verified FROM users WHERE email=$1", [
