@@ -1,5 +1,3 @@
-import pool from "../db.js";
-
 let lifecycleTablesReady = false;
 
 export const CASE_STATUS = {
@@ -150,21 +148,4 @@ export async function transitionCaseStatus(client, options) {
     before: caseRow,
     after: updated.rows[0],
   };
-}
-
-export async function transitionCaseStatusWithPool(options) {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const out = await transitionCaseStatus(client, options);
-    await client.query("COMMIT");
-    return out;
-  } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {}
-    throw error;
-  } finally {
-    client.release();
-  }
 }

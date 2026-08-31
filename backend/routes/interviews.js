@@ -32,6 +32,17 @@ router.post("/start", authMiddleware, async (req, res) => {
             return res.status(400).json({ error: "sessionId is required" });
         }
 
+        // Interviews are private to the case owner: verify before linking.
+        if (caseId) {
+            const owned = await pool.query(
+                "SELECT id FROM client_cases WHERE id=$1 AND user_id=$2",
+                [Number(caseId), req.user.id]
+            );
+            if (owned.rows.length === 0) {
+                return res.status(404).json({ error: "Case not found" });
+            }
+        }
+
         const result = await pool.query(
             `INSERT INTO case_intake_sessions
          (session_id, case_id, user_id, ws_url, language, mode, status)
@@ -56,9 +67,10 @@ router.get("/:sessionId", authMiddleware, async (req, res) => {
     try {
         const { sessionId } = req.params;
 
+        // Sessions are private to the owner (case owner or session creator).
         const result = await pool.query(
-            `SELECT * FROM case_intake_sessions WHERE session_id = $1`,
-            [sessionId]
+            `SELECT * FROM case_intake_sessions WHERE session_id = $1 AND user_id = $2`,
+            [sessionId, req.user.id]
         );
 
         if (result.rows.length === 0) {
@@ -79,9 +91,9 @@ router.get("/case/:caseId", authMiddleware, async (req, res) => {
 
         const result = await pool.query(
             `SELECT * FROM case_intake_sessions
-       WHERE case_id = $1
+       WHERE case_id = $1 AND user_id = $2
        ORDER BY created_at DESC`,
-            [caseId]
+            [caseId, req.user.id]
         );
 
         res.json({ sessions: result.rows });
@@ -98,6 +110,30 @@ router.post("/complete", authMiddleware, async (req, res) => {
 
         if (!sessionId) {
             return res.status(400).json({ error: "sessionId is required" });
+        }
+
+        // ── Ownership checks before any write ────────────────────────
+        // The fallback path is caller-driven (the client's own JWT), so the
+        // session and the target case must both belong to the caller.
+        const sessionRow = await pool.query(
+            "SELECT id, user_id, case_id FROM case_intake_sessions WHERE session_id = $1",
+            [sessionId]
+        );
+        if (sessionRow.rows.length > 0 && Number(sessionRow.rows[0].user_id) !== Number(req.user.id)) {
+            return res.status(403).json({ error: "Forbidden" });
+        }
+        const sessionCaseId = sessionRow.rows[0]?.case_id
+            ? Number(sessionRow.rows[0].case_id)
+            : null;
+        const targetCaseId = caseId ? Number(caseId) : sessionCaseId;
+        if (targetCaseId) {
+            const owned = await pool.query(
+                "SELECT id FROM client_cases WHERE id=$1 AND user_id=$2",
+                [targetCaseId, req.user.id]
+            );
+            if (owned.rows.length === 0) {
+                return res.status(403).json({ error: "Forbidden" });
+            }
         }
 
         const normalizedTranscript = transcript ? String(transcript) : null;

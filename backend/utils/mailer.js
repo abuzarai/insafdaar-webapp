@@ -10,10 +10,6 @@ export const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  // ✅ helps when SMTP servers require TLS upgrade
-  tls: {
-    rejectUnauthorized: false,
-  },
 });
 
 export async function sendOtpEmail(email, otp) {

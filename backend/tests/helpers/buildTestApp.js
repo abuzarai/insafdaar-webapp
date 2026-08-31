@@ -5,6 +5,8 @@ import advocateRegisterRoutes from "../../routes/advocate.js";
 import interviewRoutes from "../../routes/interviews.js";
 import legalAssistantRoutes from "../../routes/legalAssistant.routes.js";
 import billingRoutes from "../../routes/clientDashboard/billing/billing.routes.js";
+import clientProfileRoutes from "../../routes/clientProfile.js";
+import webhookRoutes from "../../routes/webhooks.js";
 
 export function buildTestApp() {
   const app = express();
@@ -16,6 +18,8 @@ export function buildTestApp() {
   app.use("/api/interviews", interviewRoutes);
   app.use("/api/legal-assistant", legalAssistantRoutes);
   app.use("/api/client/dashboard/billing", billingRoutes);
+  app.use("/api/client/profile", clientProfileRoutes);
+  app.use("/api/webhooks", webhookRoutes);
 
   app.use((err, _req, res, _next) => {
     res.status(err?.status || 500).json({

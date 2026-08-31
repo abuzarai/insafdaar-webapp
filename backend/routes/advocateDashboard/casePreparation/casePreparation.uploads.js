@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { randomFileName } from "../../../utils/randomFileName.js";
 
 const DOC_DIR = path.resolve("uploads/case-documents");
 fs.mkdirSync(DOC_DIR, { recursive: true });
@@ -9,7 +10,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, DOC_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname || "").toLowerCase() || ".bin";
-    cb(null, `adv_case_doc_${req.user.id}_${Date.now()}${ext}`);
+    cb(null, randomFileName(ext));
   },
 });
 

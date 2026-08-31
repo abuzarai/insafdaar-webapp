@@ -22,22 +22,16 @@ function computeResultHash(sessionId, transcript, analysis) {
     return createHash("sha256").update(base).digest("hex");
 }
 
-function inferCompletionSource(req) {
-    const ua = String(req.headers["user-agent"] || "").toLowerCase();
-    if (ua.includes("voiceinterviewagent") || ua.includes("voice-intake-agent")) return "webhook";
-    return "webhook";
-}
-
 // POST /api/webhooks/interview-complete — Receive results from voice service
 router.post("/interview-complete", async (req, res) => {
     try {
-        // Verify webhook secret
+        // Verify webhook secret — fail CLOSED: unset secret means reject.
         const secret = req.headers["x-webhook-secret"];
         const expected = process.env.VOICE_WEBHOOK_SECRET;
 
-        if (expected && secret !== expected) {
-            console.warn("Webhook secret mismatch");
-            return res.status(401).json({ error: "Invalid webhook secret" });
+        if (!expected || secret !== expected) {
+            console.warn("Webhook secret missing or mismatch", { configured: Boolean(expected) });
+            return res.status(403).json({ error: "Invalid webhook secret" });
         }
 
         const { session_id, transcript, analysis, audio_url, audio_duration_seconds } = req.body;
@@ -47,7 +41,28 @@ router.post("/interview-complete", async (req, res) => {
         }
 
         const resultHash = computeResultHash(session_id, transcript || null, analysis || null);
-        const completionSource = inferCompletionSource(req);
+        // The voice service is the only source; delivery is at-least-once, so
+        // dedupe on the canonical result hash before applying an update.
+        const existing = await pool.query(
+            `SELECT result_hash FROM case_intake_sessions WHERE session_id = $1`,
+            [session_id]
+        );
+        if (existing.rows.length > 0 && existing.rows[0].result_hash === resultHash) {
+            console.log("Duplicate webhook ignored", {
+                sessionId: session_id,
+                resultHashPrefix: resultHash.slice(0, 12),
+            });
+            return res.json({
+                message: "Duplicate webhook ignored",
+                session_id,
+                duplicated: true,
+                result_hash: resultHash,
+            });
+        }
+
+        // Voice deliveries can be retried with partial payloads; never clobber
+        // existing transcript/analysis with NULLs.
+        const completionSource = "webhook";
 
         console.log(`Webhook received for session: ${session_id}`, {
             completionSource,
@@ -59,10 +74,10 @@ router.post("/interview-complete", async (req, res) => {
         // Update case_intake_sessions
         const updateResult = await pool.query(
             `UPDATE case_intake_sessions
-       SET transcript = $1,
-           analysis = $2,
-           audio_url = $3,
-           audio_duration = $4,
+       SET transcript = COALESCE($1, transcript),
+           analysis = COALESCE($2::jsonb, analysis),
+           audio_url = COALESCE($3, audio_url),
+           audio_duration = COALESCE($4, audio_duration),
            status = 'COMPLETED',
            completed_at = NOW(),
            completion_source = COALESCE(completion_source, $6),

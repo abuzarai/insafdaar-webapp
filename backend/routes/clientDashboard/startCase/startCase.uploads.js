@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { randomFileName } from "../../../utils/randomFileName.js";
 
 const VOICE_DIR = path.resolve("uploads/case-audio");
 const DOC_DIR = path.resolve("uploads/case-documents");
@@ -12,7 +13,7 @@ const voiceStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, VOICE_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname || ".webm").toLowerCase();
-    cb(null, `case_voice_${req.user.id}_${Date.now()}${ext || ".webm"}`);
+    cb(null, randomFileName(ext || ".webm"));
   },
 });
 
@@ -25,7 +26,7 @@ const docStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, DOC_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `case_doc_${req.user.id}_${Date.now()}${ext}`);
+    cb(null, randomFileName(ext));
   },
 });
 

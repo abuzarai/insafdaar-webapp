@@ -41,6 +41,15 @@ router.post("/", async (req, res) => {
     );
 
     // ===== OTP LOGIC =====
+    // Rate-limit issuance: one OTP per minute per user.
+    const recent = await pool.query(
+      `SELECT 1 FROM email_otps WHERE user_id=$1 AND created_at > NOW() - INTERVAL '1 minute' LIMIT 1`,
+      [userId]
+    );
+    if (recent.rows.length > 0) {
+      return res.status(429).json({ error: "OTP already sent recently. Please wait a minute before resending." });
+    }
+
     const otp = generateOtp();
     const otpHash = await hashOtp(otp);
 

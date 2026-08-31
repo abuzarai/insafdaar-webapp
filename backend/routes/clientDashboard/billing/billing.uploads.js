@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { randomFileName } from "../../../utils/randomFileName.js";
 
 const UPLOAD_DIR = path.resolve("uploads/billing-proofs");
 
@@ -19,7 +20,7 @@ const storage = multer.diskStorage({
       ? ext
       : ".bin";
 
-    cb(null, `payment_proof_${req.user.id}_${Date.now()}${safeExt}`);
+    cb(null, randomFileName(safeExt));
   },
 });
 

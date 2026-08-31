@@ -3,6 +3,7 @@ import path from "path";
 import PDFDocument from "pdfkit";
 import { fileURLToPath } from "url";
 import pool from "../db.js";
+import { randomFileName } from "./randomFileName.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,7 +70,7 @@ export async function generateVoucherPdfForBillingId(billingId) {
   if (r.rowCount === 0) throw new Error("Billing record not found for PDF generation");
   const row = r.rows[0];
 
-  const filename = `insaafdar_voucher_${billingId}.pdf`;
+  const filename = randomFileName(".pdf");
   const absPath = path.join(VOUCHER_DIR, filename);
   const publicUrl = `/uploads/vouchers/${filename}`;
 

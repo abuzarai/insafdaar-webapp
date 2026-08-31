@@ -238,6 +238,9 @@ router.put("/", authMiddleware, async (req, res) => {
     }
 
     // ── Prepare values for upsert (use empty string for missing fields) ──
+    // Document verification status is admin-only: never accepted from the
+    // client body, and never overwritten on update (clients would clobber an
+    // admin's VERIFIED status back to INCOMPLETE on every profile save).
     const values = [
       userId,
       (p.phone || "").trim(),
@@ -248,8 +251,6 @@ router.put("/", authMiddleware, async (req, res) => {
       (p.emergencyContactName || "").trim(),
       (p.emergencyContactPhone || "").trim(),
       (p.avatarUrl || "").trim(),
-      p.identityDocStatus || "INCOMPLETE",
-      p.addressProofStatus || "INCOMPLETE",
     ];
 
     // ── Upsert into client_profiles ───────────────────────────────
@@ -258,9 +259,9 @@ router.put("/", authMiddleware, async (req, res) => {
       INSERT INTO client_profiles (
         user_id, phone, cnic, city, address, location,
         emergency_contact_name, emergency_contact_phone, avatar_url,
-        identity_doc_status, address_proof_status, updated_at
+        updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         phone = EXCLUDED.phone,
@@ -271,8 +272,6 @@ router.put("/", authMiddleware, async (req, res) => {
         emergency_contact_name = EXCLUDED.emergency_contact_name,
         emergency_contact_phone = EXCLUDED.emergency_contact_phone,
         avatar_url = EXCLUDED.avatar_url,
-        identity_doc_status = EXCLUDED.identity_doc_status,
-        address_proof_status = EXCLUDED.address_proof_status,
         updated_at = NOW()
       RETURNING *
       `,

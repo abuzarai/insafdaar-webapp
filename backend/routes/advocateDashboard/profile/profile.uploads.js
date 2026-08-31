@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { randomFileName } from "../../../utils/randomFileName.js";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "advocate", "documents");
 
@@ -13,7 +14,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname || "").toLowerCase();
     const safeExt = [".png", ".jpg", ".jpeg", ".pdf"].includes(ext) ? ext : ".bin";
-    cb(null, `${Date.now()}-${Math.random().toString(16).slice(2)}${safeExt}`);
+    cb(null, randomFileName(safeExt));
   },
 });
 

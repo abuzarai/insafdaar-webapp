@@ -4,6 +4,20 @@ import bcrypt from "bcryptjs";
 
 const router = express.Router();
 
+const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
+const OTP_LOCK_MINUTES = Number(process.env.OTP_LOCK_MINUTES || 10);
+
+let otpGuardReady = false;
+async function ensureOtpGuardColumns() {
+  if (otpGuardReady) return;
+  await pool.query(
+    `ALTER TABLE email_otps
+       ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0,
+       ADD COLUMN IF NOT EXISTS locked_until timestamp without time zone`
+  );
+  otpGuardReady = true;
+}
+
 /**
  * POST /api/auth/verify-otp
  * body: { email, otp }
@@ -15,6 +29,8 @@ router.post("/verify-otp", async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({ error: "Email and OTP are required" });
     }
+
+    await ensureOtpGuardColumns();
 
     // find user
     const userRes = await pool.query("SELECT id, email_verified FROM users WHERE email=$1", [
@@ -33,7 +49,7 @@ router.post("/verify-otp", async (req, res) => {
 
     // get latest OTP (not expired, not used)
     const otpRes = await pool.query(
-      `SELECT id, otp_hash, expires_at, used
+      `SELECT id, otp_hash, expires_at, used, attempts, locked_until
        FROM email_otps
        WHERE user_id=$1
        ORDER BY created_at DESC
@@ -55,9 +71,32 @@ router.post("/verify-otp", async (req, res) => {
       return res.status(400).json({ error: "OTP expired. Please request a new OTP." });
     }
 
+    // Locked out after too many failed attempts (brute-force guard).
+    if (otpRow.locked_until && new Date(otpRow.locked_until) > new Date()) {
+      return res.status(429).json({
+        error: "Too many attempts. Please request a new OTP.",
+      });
+    }
+
     // compare OTP
     const isMatch = await bcrypt.compare(String(otp), otpRow.otp_hash);
     if (!isMatch) {
+      const attempts = Number(otpRow.attempts || 0) + 1;
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        await pool.query(
+          `UPDATE email_otps
+           SET attempts=$1, locked_until = NOW() + ($2 || ' minutes')::interval
+           WHERE id=$3`,
+          [attempts, OTP_LOCK_MINUTES, otpRow.id]
+        );
+        return res.status(429).json({
+          error: `Too many attempts. Locked for ${OTP_LOCK_MINUTES} minutes. Please request a new OTP.`,
+        });
+      }
+      await pool.query(
+        `UPDATE email_otps SET attempts=$1 WHERE id=$2`,
+        [attempts, otpRow.id]
+      );
       return res.status(400).json({ error: "Invalid OTP" });
     }
 

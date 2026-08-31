@@ -18,6 +18,7 @@ import AdvocateRegisterPage from "./pages/AdvocateRegisterPage";
 import VerifyOtpPage from "./pages/VerifyOtpPage";
 
 import NotFoundPage from "./pages/NotFoundPage";
+import RequireAuth from "./routes/RequireAuth";
 import AdvocateDashboardPage from "./pages/AdvocateDashboardPage";
 import ClientDashboardPage from "./pages/ClientDashboardPage";
 
@@ -165,25 +166,31 @@ export default function App() {
           <Route path="/legal-assistant" element={<LegalAssistantPage />} />
 
           {/* Dashboards */}
-          <Route
-            path="/client-dashboard"
-            element={<ClientDashboardWithBackButton />}
-          />
-          <Route
-            path="/advocate-dashboard"
-            element={<AdvocateDashboardWithBackButton />}
-          />
+          <Route element={<RequireAuth />}>
+            <Route
+              path="/client-dashboard"
+              element={<ClientDashboardWithBackButton />}
+            />
+          </Route>
+          <Route element={<RequireAuth roles={["ADVOCATE"]} />}>
+            <Route
+              path="/advocate-dashboard"
+              element={<AdvocateDashboardWithBackButton />}
+            />
+          </Route>
 
           {/* Admin */}
-          <Route path="/admin" element={<AdminDashboardWithBackButton />} />
-          <Route
-            path="/admin/clients/:id"
-            element={<AdminClientProfileWithBackButton />}
-          />
-          <Route
-            path="/admin/advocates/:id"
-            element={<AdminAdvocateProfileWithBackButton />}
-          />
+          <Route element={<RequireAuth roles={["ADMIN"]} />}>
+            <Route path="/admin" element={<AdminDashboardWithBackButton />} />
+            <Route
+              path="/admin/clients/:id"
+              element={<AdminClientProfileWithBackButton />}
+            />
+            <Route
+              path="/admin/advocates/:id"
+              element={<AdminAdvocateProfileWithBackButton />}
+            />
+          </Route>
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

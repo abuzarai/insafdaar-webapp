@@ -30,11 +30,14 @@ function getOwnerId(req) {
     return `user:${req.user.id}`;
   }
 
-  const ownerId = req.headers["x-chat-owner-id"];
-  if (!ownerId || !String(ownerId).trim()) {
+  const raw = String(req.headers["x-chat-owner-id"] || "").trim();
+  // Guests must never claim DB-user namespaces (user:1, user:2, … would let
+  // them read/write any logged-in user's conversations). Only {"n"} accepts
+  // server-issued/random owner ids for the anonymous chat flow.
+  if (!raw || raw.length > 128 || /^user:/i.test(raw)) {
     return null;
   }
-  return String(ownerId).trim().slice(0, 128);
+  return raw;
 }
 
 function sanitizeMessages(raw) {

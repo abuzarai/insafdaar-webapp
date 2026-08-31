@@ -29,17 +29,19 @@ describe("Case initiation and AI processing API tests", () => {
   });
 
   test("test_interview_start_session_success", async () => {
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [
-        {
-          id: 11,
-          session_id: "sess-1001",
-          status: "STARTED",
-          created_at: "2026-04-27T10:00:00.000Z",
-        },
-      ],
-      rowCount: 1,
-    });
+    dbQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 500 }], rowCount: 1 }) // case ownership check
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 11,
+            session_id: "sess-1001",
+            status: "STARTED",
+            created_at: "2026-04-27T10:00:00.000Z",
+          },
+        ],
+        rowCount: 1,
+      });
 
     const payload = {
       sessionId: "sess-1001",
@@ -73,6 +75,11 @@ describe("Case initiation and AI processing API tests", () => {
 
   test("test_interview_complete_persists_fallback_data", async () => {
     dbQueryMock
+      .mockResolvedValueOnce({
+        rows: [{ id: 89, user_id: 42, case_id: 777 }],
+        rowCount: 1,
+      }) // session ownership lookup
+      .mockResolvedValueOnce({ rows: [{ id: 777 }], rowCount: 1 }) // case ownership check
       .mockResolvedValueOnce({
         rows: [
           {

@@ -844,6 +844,25 @@ export async function markInterviewCompleteForCase(req, res) {
 
     if (!caseId) return res.status(400).json({ error: "caseId is required" });
 
+    // Gate (audit #20): a case may only move into matching when a real
+    // completed voice interview exists (webhook or client-fallback must have
+    // persisted transcript/analysis into case_intake_sessions). This prevents
+    // clients from skipping the AI intake and injecting an arbitrary domain.
+    const sessionRes = await pool.query(
+      `SELECT 1 FROM case_intake_sessions
+       WHERE case_id = $1 AND status = 'COMPLETED'
+         AND (transcript IS NOT NULL OR analysis IS NOT NULL)
+       LIMIT 1`,
+      [caseId]
+    );
+    if (sessionRes.rows.length === 0) {
+      return res.status(400).json({
+        error:
+          "No completed voice interview found for this case yet. Please finish the AI interview and try again.",
+        code: "INTERVIEW_NOT_COMPLETED",
+      });
+    }
+
     const r = await pool.query(
       `
         UPDATE public.client_cases

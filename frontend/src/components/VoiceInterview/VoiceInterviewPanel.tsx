@@ -465,7 +465,7 @@ export default function VoiceInterviewPanel({
 
     /* ─── handleResults() — from test_ui.html line 629 ─ */
 
-    const handleResults = (msg: any) => {
+    const handleResults = async (msg: any) => {
         if (finalizeTimerRef.current) {
             clearTimeout(finalizeTimerRef.current);
             finalizeTimerRef.current = null;
@@ -484,20 +484,26 @@ export default function VoiceInterviewPanel({
         setStatusText("Interview complete!");
         addMsg("system", "Interview complete! Results above.");
         hasDeliveredResultRef.current = true;
-        onComplete?.(r);
 
-        // Save to backend (non-blocking)
-        fetch(`${API_BASE_URL}/api/interviews/complete`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            body: JSON.stringify({
-                sessionId: msg.session_id,
-                caseId,
-                transcript: msg.transcript,
-                analysis: msg.analysis,
-                audioUrl: msg.audio_url,
-            }),
-        }).catch(() => { });
+        // Persist to the backend FIRST so the dashboard's completion gate
+        // (which requires a completed voice session) sees the result.
+        try {
+            await fetch(`${API_BASE_URL}/api/interviews/complete`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({
+                    sessionId: msg.session_id,
+                    caseId,
+                    transcript: msg.transcript,
+                    analysis: msg.analysis,
+                    audioUrl: msg.audio_url,
+                }),
+            });
+        } catch (err) {
+            console.error("Failed to persist interview result to backend", err);
+        }
+
+        onComplete?.(r);
     };
 
     /* ─── waitForAgentToFinishThenListen() — EXACTLY from test_ui.html line 713 ─ */

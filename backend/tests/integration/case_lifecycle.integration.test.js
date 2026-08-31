@@ -25,6 +25,7 @@ describe("Integration flow: intake to AI to matching prep", () => {
 
   test("test_case_intake_to_ai_processing_flow", async () => {
     dbQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: 555 }], rowCount: 1 }) // start: case ownership check
       .mockResolvedValueOnce({
         rows: [
           {
@@ -36,6 +37,11 @@ describe("Integration flow: intake to AI to matching prep", () => {
         ],
         rowCount: 1,
       })
+      .mockResolvedValueOnce({
+        rows: [{ id: 901, user_id: 301, case_id: 555 }],
+        rowCount: 1,
+      }) // complete: session ownership lookup
+      .mockResolvedValueOnce({ rows: [{ id: 555 }], rowCount: 1 }) // complete: case ownership check
       .mockResolvedValueOnce({
         rows: [
           {

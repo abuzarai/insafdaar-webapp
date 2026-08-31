@@ -5,6 +5,7 @@ import fs from "fs";
 import pool from "../db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { enqueueDocumentExtractionJobs } from "../services/documentExtraction.service.js";
+import { randomFileName } from "../utils/randomFileName.js";
 
 const router = express.Router();
 
@@ -15,8 +16,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const safeType = (req.body.docType || "DOC").replace(/[^A-Z_]/gi, "");
-    cb(null, `${safeType}_${req.user.id}_${Date.now()}${ext}`);
+    cb(null, randomFileName(ext));
   },
 });
 
