@@ -6,3 +6,5 @@ yarn-error.log
 .env
 Dockerfile
 docker-compose.yml
+uploads
+uploads-rotate-manifest.json

@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:15-alpine
@@ -11,13 +17,21 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-insafdaar_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 512m
+    logging: *default-logging
 
   backend:
     build:
       context: ./backend
     container_name: insafdaar-backend
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       PORT: ${PORT:-5000}
       DB_USER: ${DB_USER:-postgres}
@@ -37,16 +51,12 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL}
 
       # Voice Intake Agent
-      VOICE_SERVICE_URL: ${VOICE_SERVICE_URL}
       VOICE_WEBHOOK_SECRET: ${VOICE_WEBHOOK_SECRET}
 
       # Legal RAG Proxy
       LEGAL_RAG_API_URL: ${LEGAL_RAG_API_URL}
-      LEGAL_RAG_REQUIRE_AUTH: ${LEGAL_RAG_REQUIRE_AUTH:-false}
-      LEGAL_RAG_AUDIENCE: ${LEGAL_RAG_AUDIENCE}
       LEGAL_RAG_TIMEOUT_MS: ${LEGAL_RAG_TIMEOUT_MS:-45000}
       LEGAL_ASSISTANT_GUEST_PROMPT_LIMIT: ${LEGAL_ASSISTANT_GUEST_PROMPT_LIMIT:-3}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/run/secrets/gcp-rag-invoker.json}
       DRAFTING_ASSISTANT_URL: ${DRAFTING_ASSISTANT_URL}
       DRAFTING_ASSISTANT_TIMEOUT_MS: ${DRAFTING_ASSISTANT_TIMEOUT_MS:-45000}
       DRAFTING_ASSISTANT_GENERATE_TIMEOUT_MS: ${DRAFTING_ASSISTANT_GENERATE_TIMEOUT_MS:-90000}
@@ -54,10 +64,17 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/api/webhooks/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 512m
+    logging: *default-logging
 
     volumes:
       - ./backend/uploads:/app/uploads
-      - ${GCP_RAG_KEY_PATH:-./secrets/gcp-rag-invoker.json}:/run/secrets/gcp-rag-invoker.json:ro
 
   frontend:
     build:
@@ -65,8 +82,6 @@ services:
       args:
         # API must be reachable from the user’s browser; use host-mapped ports.
         REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:5000}
-        REACT_APP_LEGAL_RAG_API: ${REACT_APP_LEGAL_RAG_API}
-        REACT_APP_CHAT_HISTORY_API: ${REACT_APP_CHAT_HISTORY_API:-http://localhost:5000}
         REACT_APP_VOICE_SERVICE_URL: ${REACT_APP_VOICE_SERVICE_URL}
     container_name: insafdaar-frontend
     depends_on:
@@ -74,6 +89,14 @@ services:
     ports:
       - "3000:80"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 128m
+    logging: *default-logging
 
   # ─────────────────────────────────────────────────────────────
   # AI microservices
@@ -85,6 +108,14 @@ services:
     image: semitechnologies/weaviate:1.28.4
     container_name: insafdaar-weaviate
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header='Authorization: Bearer ${WEAVIATE_API_KEY}' http://localhost:8080/v1/meta || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 1500m
+    logging: *default-logging
     environment:
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "false"
       AUTHENTICATION_APIKEY_ENABLED: "true"
@@ -96,14 +127,14 @@ services:
       ENABLE_MODULES: ""
     volumes:
       - weaviate_data:/var/lib/weaviate
-    mem_limit: 1500m
 
   legal-rag:
     build:
       context: ../legal-rag-assistant
     container_name: insafdaar-legal-rag
     depends_on:
-      - weaviate
+      weaviate:
+        condition: service_healthy
     restart: unless-stopped
     environment:
       ENV: prod
@@ -123,14 +154,22 @@ services:
     volumes:
       - ../legal-rag-assistant/service_account.json:/run/secrets/drive-sa.json:ro
       - rag_artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health', timeout=3).status==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     mem_limit: 1200m
+    logging: *default-logging
 
   drafting:
     build:
       context: ../drafting-assistant
     container_name: insafdaar-drafting
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     environment:
       ENV: production
@@ -139,7 +178,14 @@ services:
       EXPRESS_INTERNAL_URL: http://backend:5000
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       CORS_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health', timeout=3).status==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     mem_limit: 512m
+    logging: *default-logging
 
   voice:
     build:
@@ -159,6 +205,7 @@ services:
     volumes:
       - ./ai-data/voice-audio:/data/audio
     mem_limit: 256m
+    logging: *default-logging
 
 volumes:
   postgres_data:

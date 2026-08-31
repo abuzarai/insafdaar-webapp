@@ -111,7 +111,7 @@ The platform integrates three standalone AI microservices via REST/webhook:
 |---------|------|---------|
 | [legal-rag-assistant](https://github.com/abuzarai/legal-rag-assistant) | FastAPI · Weaviate · Gemini | RAG chatbot over Pakistani case law and CPC sections, returning answers with source citations |
 | [drafting-assistant](https://github.com/abuzarai/drafting-assistant) | FastAPI · Gemini 2.0 Flash | Generates, iterates, and exports legal documents (plaints, affidavits, written statements, contracts) |
-| [voice-intake-agent](https://github.com/abuzarai/voice-intake-agent) | FastAPI · WebSockets · GCP STT | Bilingual (Urdu/English) real-time legal intake interviews via WebSocket audio, with Gemini classification |
+| [voice-intake-agent](https://github.com/abuzarai/voice-intake-agent) | FastAPI · WebSockets · Gemini | Bilingual (Urdu/English) real-time legal intake interviews via WebSocket audio, with Gemini classification |
 
 Additional AI/automation built into the main backend:
 - **Advocate Matching** — AI-powered candidate ranking based on case details
@@ -181,11 +181,9 @@ Additional AI/automation built into the main backend:
 - Service Worker — PWA registration
 
 **Infrastructure**
-- Docker Compose — full-stack local orchestration (db + backend + frontend)
-- Oracle Cloud Infrastructure (OCI) — VM hosting
-- Google Cloud Run — AI microservice hosting
-- GitHub Actions — CI/CD deployment pipeline
-- Nginx — reverse proxy for frontend
+- Docker Compose — full-stack orchestration (db + backend + frontend + weaviate + the three AI microservices)
+- Oracle Cloud Infrastructure (OCI) — VM hosting (free tier)
+- Nginx — reverse proxy for the frontend
 
 ---
 
@@ -256,13 +254,15 @@ Copy `.env.example` to `.env` and fill in:
 
 | Variable | Description |
 |----------|-------------|
-| `DB_PASSWORD` | PostgreSQL password |
+| `DB_PASSWORD` / `POSTGRES_PASSWORD` | PostgreSQL password (same value) |
 | `JWT_SECRET` | Secret for signing JWT tokens |
 | `INTERNAL_API_KEY` | Shared secret for internal microservice auth |
 | `SMTP_USER` / `SMTP_PASS` | Gmail SMTP credentials |
-| `LEGAL_RAG_API_URL` | URL of the deployed Legal RAG Cloud Run service |
-| `DRAFTING_ASSISTANT_URL` | URL of the deployed Drafting Assistant Cloud Run service |
-| `VOICE_SERVICE_URL` | URL of the deployed Voice Intake Agent Cloud Run service |
+| `RAG_GEMINI_API_KEY` / `DRAFTING_GEMINI_API_KEY` / `VOICE_GEMINI_API_KEY` | Gemini keys per AI service |
+| `WEAVIATE_API_KEY` | Weaviate auth key |
+| `VOICE_WEBHOOK_SECRET` | Secret the voice service signs webhooks with |
+| `DRIVE_ROOT_FOLDER_ID` | Google Drive corpus folder for legal-rag ingestion |
+| `LEGAL_RAG_API_URL` / `DRAFTING_ASSISTANT_URL` | Compose network URLs (`http://legal-rag:8080`, `http://drafting:8080`) |
 | `GOOGLE_SERVICE_ACCOUNT_*` | Google Calendar service account credentials |
 
 ---
