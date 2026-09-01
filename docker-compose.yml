@@ -134,7 +134,7 @@ services:
       ENABLE_MODULES: ""
       # raft join can exceed the default timeout on the 1GB micro under
       # swap pressure (crash-restart cycle during deploys); vendor-recommended
-      RAFT_BOOTSTRAP_TIMEOUT: 60s
+      RAFT_BOOTSTRAP_TIMEOUT: 60
     volumes:
       - weaviate_data:/var/lib/weaviate
 
