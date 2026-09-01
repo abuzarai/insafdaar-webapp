@@ -213,6 +213,14 @@ services:
       - ./ai-data/voice-audio:/data/audio
     mem_limit: 256m
     logging: *default-logging
+    # Override Dockerfile HEALTHCHECK: python cold-start on the 1GB micro
+    # can exceed the image's 3s timeout under swap pressure.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   postgres_data:
