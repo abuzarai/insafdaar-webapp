@@ -510,7 +510,7 @@ export default function LegalAssistantPage() {
 
                   return (
                     <li key={conv.id}>
-                      <div className="flex items-center gap-1">
+                      <div className="group flex items-center gap-1">
                         <button
                           onClick={() => loadConversation(conv.id)}
                           className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left transition ${
@@ -532,6 +532,14 @@ export default function LegalAssistantPage() {
                               </span>
                             </div>
                           )}
+                        </button>
+                        <button
+                          onClick={() => handleRenameConversation(conv.id, conv.title)}
+                          aria-label="Rename conversation"
+                          className="p-2 rounded-md text-blue-300 hover:text-white hover:bg-slate-700 transition"
+                          title="Rename conversation"
+                        >
+                          <Pencil size={13} />
                         </button>
                         <button
                           onClick={() => handleDeleteConversation(conv.id)}
@@ -599,7 +607,7 @@ export default function LegalAssistantPage() {
 
                       return (
                         <li key={conv.id}>
-                          <div className="flex items-center gap-1">
+                          <div className="group flex items-center gap-1">
                             <button
                               onClick={() => {
                                 loadConversation(conv.id);
@@ -625,14 +633,8 @@ export default function LegalAssistantPage() {
                             </button>
                             <button
                               onClick={() => handleRenameConversation(conv.id, conv.title)}
-                              className="p-2 rounded-md text-slate-400 hover:text-blue-300 hover:bg-slate-800 transition"
-                              title="Rename conversation"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                            <button
-                              onClick={() => handleRenameConversation(conv.id, conv.title)}
-                              className="p-2 rounded-md text-slate-400 hover:text-blue-300 hover:bg-slate-800 transition"
+                              aria-label="Rename conversation"
+                              className="p-2 rounded-md text-blue-300 hover:text-white hover:bg-slate-700 transition"
                               title="Rename conversation"
                             >
                               <Pencil size={13} />
