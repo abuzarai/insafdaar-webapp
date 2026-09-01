@@ -143,15 +143,14 @@ Additional AI/automation built into the main backend:
 │  /internal/draft/*     →  Private drafting API          │
 └──────┬──────────────────┬──────────────────┬────────────┘
        │                  │                  │
-       ▼                  ▼                  ▼
-  PostgreSQL        Google Cloud         Oracle Cloud
-  (Port 5432)         Run (GCP)        Infrastructure
-                         │
-           ┌─────────────┼─────────────┐
-           ▼             ▼             ▼
-    Legal RAG       Drafting       Voice Intake
-    Assistant       Assistant        Agent
-   (FastAPI)        (FastAPI)      (FastAPI + WS)
+       ▼                  ▼                ▼
+  PostgreSQL        Containers (compose)
+  (Port 5432)          on OCI VM
+                ┌─────────────┼─────────────┐
+                ▼             ▼             ▼
+         Legal RAG       Drafting       Voice Intake
+         Assistant       Assistant        Agent
+        (FastAPI)        (FastAPI)      (FastAPI + WS)
 ```
 
 ---

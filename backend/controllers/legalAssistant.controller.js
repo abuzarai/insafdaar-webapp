@@ -93,9 +93,8 @@ function getTimeoutMs() {
 
 async function getAuthHeaders() {
   // Shared internal key: the RAG service enforces X-Internal-Key.
-  // The old Google ID-token path only worked on GCP and broke on the compose
+  // (The old Google ID-token path only worked on GCP and broke once the
   // service ran inside the compose network.)
-  // (deleted line)
   const internalKey = process.env.INTERNAL_API_KEY;
   if (!internalKey) return {};
   return { "x-internal-key": internalKey };
