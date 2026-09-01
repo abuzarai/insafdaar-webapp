@@ -106,9 +106,8 @@ services:
 
   # ─────────────────────────────────────────────────────────────
   # AI microservices
-  # Build contexts expect sibling clones:
-  #   Projects/webapp  Projects/legal-rag-assistant
-  #   Projects/drafting-assistant  Projects/voice_intake_agent
+  # Build contexts expect the sibling repos cloned next to webapp:
+  #   ../legal-rag-assistant  ../drafting-assistant  ../voice_intake_agent
   # ─────────────────────────────────────────────────────────────
   weaviate:
     image: semitechnologies/weaviate:1.28.4
