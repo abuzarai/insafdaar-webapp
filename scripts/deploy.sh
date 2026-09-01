@@ -17,7 +17,11 @@ fi
 
 for r in "${REPOS[@]}"; do
   echo "==> pull $r"
-  git -C "$BASE/$r" fetch --quiet origin
+  # retry transient ref-lock contention (concurrent fetch with a manual pull)
+  for i in 1 2 3; do
+    if git -C "$BASE/$r" fetch --quiet origin; then break; fi
+    [ "$i" -lt 3 ] && sleep 5
+  done
   git -C "$BASE/$r" checkout -q -f main
   git -C "$BASE/$r" reset --hard --quiet origin/main
 done
