@@ -43,7 +43,9 @@ docker compose up -d --build --remove-orphans
 
 echo "==> health (containers, via compose healthchecks)"
 ok=1
-for i in $(seq 1 12); do
+# grace up to ~150s: on the 1GB micro a container can be restarting or
+# still within its start window right after a big build
+for i in $(seq 1 30); do
   ready=1
   for c in db backend frontend weaviate legal-rag drafting voice; do
     st=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "insafdaar-$c" 2>/dev/null || echo missing)

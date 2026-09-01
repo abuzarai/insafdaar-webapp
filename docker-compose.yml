@@ -117,9 +117,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null --header='Authorization: Bearer ${WEAVIATE_API_KEY}' http://localhost:8080/v1/meta || exit 1"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 60s
     mem_limit: 1500m
     logging: *default-logging
     environment:
@@ -132,6 +132,9 @@ services:
       QUERY_DEFAULTS_LIMIT: 25
       DEFAULT_VECTORIZER_MODULE: none
       ENABLE_MODULES: ""
+      # raft join can exceed the default timeout on the 1GB micro under
+      # swap pressure (crash-restart cycle during deploys); vendor-recommended
+      RAFT_BOOTSTRAP_TIMEOUT: 60s
     volumes:
       - weaviate_data:/var/lib/weaviate
 
