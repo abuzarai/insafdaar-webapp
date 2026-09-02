@@ -19,9 +19,9 @@ jobs:
       - name: Clone sibling repos
         run: |
           cd insafdaar
-          for r in legal-rag-assistant drafting-assistant voice-intake-agent; do
-            git clone -q --depth 1 -b main "https://github.com/abuzarai/$r.git" "../$r"
-          done
+          git clone -q --depth 1 -b main https://github.com/abuzarai/legal-rag-assistant.git ../legal-rag-assistant
+          git clone -q --depth 1 -b main https://github.com/abuzarai/drafting-assistant.git ../drafting-assistant
+          git clone -q --depth 1 -b main https://github.com/abuzarai/voice-intake-agent.git ../voice_intake_agent
         shell: bash
 
       - name: Set up Docker Buildx
