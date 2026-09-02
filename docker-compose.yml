@@ -113,6 +113,11 @@ services:
     image: semitechnologies/weaviate:1.28.4
     container_name: insafdaar-weaviate
     restart: unless-stopped
+    networks:
+      default:
+        # raft records the node's address at init; pin it so the restored
+        # state is adoptable across hosts instead of crash-looping
+        ipv4_address: 172.18.0.2
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null --header='Authorization: Bearer ${WEAVIATE_API_KEY}' http://localhost:8080/v1/meta || exit 1"]
       interval: 15s
@@ -133,7 +138,7 @@ services:
       ENABLE_MODULES: ""
       # raft join can exceed the default timeout on the 1GB micro under
       # swap pressure (crash-restart cycle during deploys); vendor-recommended
-      RAFT_BOOTSTRAP_TIMEOUT: 60
+      RAFT_BOOTSTRAP_TIMEOUT: 900
     volumes:
       - weaviate_data:/var/lib/weaviate
 
@@ -228,3 +233,9 @@ volumes:
   postgres_data:
   weaviate_data:
   rag_artifacts:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.18.0.0/24
