@@ -9,6 +9,14 @@ REPOS=(webapp legal-rag-assistant drafting-assistant voice_intake_agent)
 
 echo "[deploy] $(date -Is)"
 
+# Serialize deploys: multiple repos push simultaneously (one pipeline per
+# repo), and concurrent git/compose operations on the same clones collide.
+exec 9>/tmp/insafdaar-deploy.lock
+if ! flock -w 3600 9; then
+  echo "[deploy] another deploy holds the lock; giving up after 60m wait."
+  exit 1
+fi
+
 if [ ! -d "$BASE/webapp/.git" ]; then
   echo "[deploy] ~/insafdaar not set up on this box yet."
   echo "[deploy] Clone the four repos into ~/insafdaar first, then re-run."
