@@ -18,5 +18,7 @@ jobs:
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes ubuntu@"$DEPLOY_HOST" \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes \
+            ubuntu@"$DEPLOY_HOST" \
             'bash ~/insafdaar/webapp/scripts/deploy.sh'
