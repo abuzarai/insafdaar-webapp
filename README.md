@@ -3,7 +3,7 @@
 > **Final Year Project** · Built in collaboration with **Insafdaar**, a Pakistani legal firm.  
 > A full-stack platform with three user portals (Client, Advocate, Admin) and integrated AI microservices.
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-PolyForm_Noncommercial-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql&logoColor=white)](https://postgresql.org)
@@ -334,4 +334,4 @@ webapp/
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use requires written permission from the author.
