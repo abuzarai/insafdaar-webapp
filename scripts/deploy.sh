@@ -6,12 +6,6 @@ set -euo pipefail
 
 BASE="${DEPLOY_BASE:-$HOME/insafdaar}"
 REPOS=(webapp legal-rag-assistant drafting-assistant voice_intake_agent)
-REBUILD=0
-
-# Changes only count as rebuild-worthy if they touch an image build
-# context; scripts/.github-only pushes must not trigger a full --build
-# (the react build is the slow part on small hosts).
-WEBAPP_CTX='^(backend/|frontend/|docker-compose.yml|\.gitattributes)'
 
 echo "[deploy] $(date -Is)"
 
@@ -28,16 +22,8 @@ for r in "${REPOS[@]}"; do
     if git -C "$BASE/$r" fetch --quiet origin; then break; fi
     [ "$i" -lt 3 ] && sleep 5
   done
-  prev=$(git -C "$BASE/$r" rev-parse HEAD)
   git -C "$BASE/$r" checkout -q -f main
   git -C "$BASE/$r" reset --hard --quiet origin/main
-  if git -C "$BASE/$r" diff --name-only "$prev" HEAD | grep -q "^."; then
-    if [ "$r" = "webapp" ]; then
-      git -C "$BASE/$r" diff --name-only "$prev" HEAD | grep -qE "$WEBAPP_CTX" && REBUILD=1
-    else
-      REBUILD=1
-    fi
-  fi
 done
 
 cd "$BASE/webapp"
@@ -52,13 +38,16 @@ done
 echo "==> migrations"
 bash scripts/apply-migrations.sh
 
-echo "==> build + up"
-if [ "$REBUILD" = "1" ]; then
-  docker compose up -d --build --remove-orphans
-else
-  echo "==> no build context changed; applying without rebuild"
-  docker compose up -d
-fi
+echo "==> verify images present"
+for img in webapp-backend:latest webapp-frontend:latest webapp-legal-rag:latest webapp-drafting:latest webapp-voice:latest; do
+  if ! docker image inspect "$img" >/dev/null 2>&1; then
+    echo "[deploy] MISSING IMAGE: $img — the build pipeline must ship it first."
+    exit 1
+  fi
+done
+
+echo "==> up (images shipped prebuilt; no build on this host)"
+docker compose up -d --remove-orphans
 
 echo "==> health (containers, via compose healthchecks)"
 ok=1
