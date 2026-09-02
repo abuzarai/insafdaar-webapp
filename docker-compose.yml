@@ -8,9 +8,6 @@ services:
   db:
     image: postgres:15-alpine
     container_name: insafdaar-db
-    networks:
-      default:
-        ipv4_address: 172.18.0.3
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -32,9 +29,6 @@ services:
     build:
       context: ./backend
     container_name: insafdaar-backend
-    networks:
-      default:
-        ipv4_address: 172.18.0.4
     depends_on:
       db:
         condition: service_healthy
@@ -96,9 +90,6 @@ services:
         REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:5000}
         REACT_APP_VOICE_SERVICE_URL: ${REACT_APP_VOICE_SERVICE_URL}
     container_name: insafdaar-frontend
-    networks:
-      default:
-        ipv4_address: 172.18.0.5
     depends_on:
       - backend
     ports:
@@ -155,9 +146,6 @@ services:
     build:
       context: ../legal-rag-assistant
     container_name: insafdaar-legal-rag
-    networks:
-      default:
-        ipv4_address: 172.18.0.6
     depends_on:
       weaviate:
         condition: service_healthy
@@ -193,9 +181,6 @@ services:
     build:
       context: ../drafting-assistant
     container_name: insafdaar-drafting
-    networks:
-      default:
-        ipv4_address: 172.18.0.7
     depends_on:
       backend:
         condition: service_healthy
@@ -220,9 +205,6 @@ services:
     build:
       context: ../voice_intake_agent
     container_name: insafdaar-voice
-    networks:
-      default:
-        ipv4_address: 172.18.0.8
     restart: unless-stopped
     environment:
       ENVIRONMENT: production
@@ -252,8 +234,3 @@ volumes:
   weaviate_data:
   rag_artifacts:
 
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: 172.18.0.0/24
