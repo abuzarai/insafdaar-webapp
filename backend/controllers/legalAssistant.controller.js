@@ -38,6 +38,7 @@ function sanitizeMessages(raw) {
       id: String(msg?.id || randomUUID()),
       role: msg?.role === "assistant" ? "assistant" : "user",
       content: String(msg?.content || "").trim(),
+      mode: ["legal", "social", "uncertain"].includes(msg?.mode) ? msg.mode : undefined,
       citations: Array.isArray(msg?.citations)
         ? msg.citations
             .map((item) => String(item || "").trim())
