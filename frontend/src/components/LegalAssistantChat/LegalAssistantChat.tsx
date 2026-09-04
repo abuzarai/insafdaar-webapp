@@ -455,7 +455,7 @@ export default function LegalAssistantChat({
                         <>
                           <div className="space-y-2">{renderAssistantContent(displayContent)}</div>
 
-                          {msg.mode === "legal" && !!msg.sources?.length && (
+                          {!!msg.sources?.length && (
                        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Sources</div>
                         <ul className="mt-2 space-y-1.5 text-[12px] text-blue-700">
