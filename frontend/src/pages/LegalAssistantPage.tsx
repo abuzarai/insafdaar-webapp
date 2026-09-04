@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  ShieldCheck,
   Menu,
   Plus,
   Trash2,
@@ -419,24 +418,12 @@ export default function LegalAssistantPage() {
         </h1>
 
         <div className="ml-auto flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-gray-600">
-            <ShieldCheck className="text-[#004aad]" size={18} />
-            Secure AI Helper
-          </div>
-
           {profile ? (
-            <div className="flex items-center gap-2 rounded-full border border-[#cdd8ea] bg-[#f6f9ff] px-2.5 py-1">
-              <div className="h-7 w-7 rounded-full bg-[#004aad] text-white text-xs font-bold flex items-center justify-center">
-                {getInitials(profile.label)}
-              </div>
-              <div className="hidden md:block leading-tight">
-                <div className="text-[11px] font-semibold text-[#0f172a] max-w-[140px] truncate">
-                  {profile.label}
-                </div>
-                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
-                  {profile.role || "account"}
-                </div>
-              </div>
+            <div
+              className="h-8 w-8 rounded-full bg-[#004aad] text-white text-xs font-bold flex items-center justify-center shadow-sm"
+              title={`${profile.label} (${profile.role || "account"})`}
+            >
+              {getInitials(profile.label)}
             </div>
           ) : (
             <button
