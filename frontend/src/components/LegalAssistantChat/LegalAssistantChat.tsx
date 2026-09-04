@@ -64,7 +64,7 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function renderInlineMarkup(text: string) {
+function renderBold(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   const regex = /\*\*(.*?)\*\*/g;
   let lastIdx = 0;
@@ -89,7 +89,67 @@ function renderInlineMarkup(text: string) {
   return parts;
 }
 
-function renderAssistantContent(content: string) {
+// Turn "(Source 1, Source 2, Source 3)" into clickable superscript numbers
+// linked to the matching entry in the Sources box below the answer.
+function renderSourceRefs(
+  text: string,
+  sources: ChatMessage["sources"]
+): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\(Sources?\s+(\d+)(?:\s*,\s*Sources?\s+(\d+))*\)/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(...renderBold(text.slice(lastIdx, match.index)));
+    }
+    const nums = (match[0].match(/\d+/g) || []).map(Number).filter((n) => n >= 1);
+    const refStart = match.index;
+    parts.push(
+      <sup key={`src-${refStart}`} className="ml-0.5">
+        {nums.map((n, i) => {
+          const src = sources && sources[n - 1];
+          return src?.link ? (
+            <a
+              key={`${refStart}-${n}`}
+              href={safeExternalHref(src.link)}
+              target="_blank"
+              rel="noreferrer"
+              title={src.title}
+              className="font-semibold text-blue-600 hover:underline"
+            >
+              {i > 0 ? ", " : ""}[{n}]
+            </a>
+          ) : (
+            <span key={`${refStart}-${n}`} className="text-slate-500">
+              {i > 0 ? ", " : ""}[{n}]
+            </span>
+          );
+        })}
+      </sup>
+    );
+    lastIdx = match.index + match[0].length;
+  }
+
+  if (lastIdx < text.length) {
+    parts.push(...renderBold(text.slice(lastIdx)));
+  }
+
+  return parts;
+}
+
+function renderInlineMarkup(
+  text: string,
+  sources?: ChatMessage["sources"]
+): React.ReactNode[] {
+  if (sources && sources.length > 0) {
+    return renderSourceRefs(text, sources);
+  }
+  return renderBold(text);
+}
+
+function renderAssistantContent(content: string, sources?: ChatMessage["sources"]) {
   const blocks = content
     .split(/\n\n+/)
     .map((block) => block.trim())
@@ -104,7 +164,7 @@ function renderAssistantContent(content: string) {
       return (
         <ul key={`ul-${blockIdx}`} className="list-disc pl-5 space-y-1 text-slate-700 marker:text-slate-400">
           {bulletLines.map((line, idx) => (
-            <li key={`li-${blockIdx}-${idx}`}>{renderInlineMarkup(line.replace(/^[-*]\s+/, ""))}</li>
+            <li key={`li-${blockIdx}-${idx}`}>{renderInlineMarkup(line.replace(/^[-*]\s+/, ""), sources)}</li>
           ))}
         </ul>
       );
@@ -114,7 +174,7 @@ function renderAssistantContent(content: string) {
       return (
         <ol key={`ol-${blockIdx}`} className="list-decimal pl-5 space-y-1 text-slate-700 marker:text-slate-400">
           {numberedLines.map((line, idx) => (
-            <li key={`oli-${blockIdx}-${idx}`}>{renderInlineMarkup(line.replace(/^\d+\.\s+/, ""))}</li>
+            <li key={`oli-${blockIdx}-${idx}`}>{renderInlineMarkup(line.replace(/^\d+\.\s+/, ""), sources)}</li>
           ))}
         </ol>
       );
@@ -124,14 +184,14 @@ function renderAssistantContent(content: string) {
     if (headingMatch) {
       return (
         <p key={`p-${blockIdx}`} className="leading-relaxed text-slate-700 whitespace-pre-wrap">
-          {renderInlineMarkup(headingMatch[2] || headingMatch[1])}
+          {renderInlineMarkup(headingMatch[2] || headingMatch[1], sources)}
         </p>
       );
     }
 
     return (
       <p key={`p-${blockIdx}`} className="leading-relaxed text-slate-700 whitespace-pre-wrap">
-        {renderInlineMarkup(block)}
+        {renderInlineMarkup(block, sources)}
       </p>
     );
   });
@@ -453,7 +513,7 @@ export default function LegalAssistantChat({
 
                       return (
                         <>
-                          <div className="space-y-2">{renderAssistantContent(displayContent)}</div>
+                          <div className="space-y-2">{renderAssistantContent(displayContent, msg.sources)}</div>
 
                           {!!msg.sources?.length && (
                        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
