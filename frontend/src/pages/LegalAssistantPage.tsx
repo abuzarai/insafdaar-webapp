@@ -465,20 +465,24 @@ export default function LegalAssistantPage() {
               </span>
             )}
             <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={handleNewChat}
-                className="p-1.5 rounded-md bg-[#0ea5e9] text-white hover:bg-[#0284c7] transition shadow-sm"
-                title="New chat"
-              >
-                <Plus size={16} />
-              </button>
-              <button
-                onClick={handleClearAllConversations}
-                className="p-1.5 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
-                title="Clear all"
-              >
-                <Trash2 size={14} />
-              </button>
+              {sidebarOpen && (
+                <>
+                  <button
+                    onClick={handleNewChat}
+                    className="p-1.5 rounded-md bg-[#0ea5e9] text-white hover:bg-[#0284c7] transition shadow-sm"
+                    title="New chat"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <button
+                    onClick={handleClearAllConversations}
+                    className="p-1.5 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
+                    title="Clear all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              )}
               <button
                 onClick={toggleSidebar}
                 className="p-1.5 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
@@ -513,7 +517,7 @@ export default function LegalAssistantPage() {
                       <div className="group flex items-center gap-1">
                         <button
                           onClick={() => loadConversation(conv.id)}
-                          className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left transition ${
+                          className={`min-w-0 flex-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left transition ${
                             isActive
                               ? "bg-slate-700 text-white"
                               : "hover:bg-slate-800 text-slate-200"
@@ -523,7 +527,7 @@ export default function LegalAssistantPage() {
                             <MessageSquare size={14} />
                           </div>
                           {sidebarOpen && (
-                            <div className="flex-1 flex flex-col">
+                            <div className="flex-1 min-w-0 flex flex-col">
                               <span className="truncate font-medium">
                                 {label}
                               </span>
@@ -533,21 +537,25 @@ export default function LegalAssistantPage() {
                             </div>
                           )}
                         </button>
-                        <button
-                          onClick={() => handleRenameConversation(conv.id, conv.title)}
-                          aria-label="Rename conversation"
-                          className="p-2 rounded-md text-blue-300 hover:text-white hover:bg-slate-700 transition"
-                          title="Rename conversation"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteConversation(conv.id)}
-                          className="p-2 rounded-md text-slate-400 hover:text-red-300 hover:bg-slate-800 transition"
-                          title="Delete conversation"
-                        >
+                        {sidebarOpen && (
+                          <button
+                            onClick={() => handleRenameConversation(conv.id, conv.title)}
+                            aria-label="Rename conversation"
+                            className="p-2 rounded-md text-blue-300 hover:text-white hover:bg-slate-700 transition"
+                            title="Rename conversation"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                        {sidebarOpen && (
+                          <button
+                            onClick={() => handleDeleteConversation(conv.id)}
+                            className="p-2 rounded-md text-slate-400 hover:text-red-300 hover:bg-slate-800 transition"
+                            title="Delete conversation"
+                          >
                           <Trash2 size={13} />
                         </button>
+                        )}
                       </div>
                     </li>
                   );
@@ -613,7 +621,7 @@ export default function LegalAssistantPage() {
                                 loadConversation(conv.id);
                                 setSidebarOpen(false);
                               }}
-                              className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left transition ${
+                              className={`min-w-0 flex-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left transition ${
                                 isActive
                                   ? "bg-slate-700 text-white"
                                   : "hover:bg-slate-800 text-slate-200"
@@ -622,7 +630,7 @@ export default function LegalAssistantPage() {
                               <div className="flex-shrink-0 w-6 h-6 rounded-md bg-slate-800 flex items-center justify-center text-slate-300">
                                 <MessageSquare size={14} />
                               </div>
-                              <div className="flex-1 flex flex-col">
+                              <div className="flex-1 min-w-0 flex flex-col">
                                 <span className="truncate font-medium">
                                   {label}
                                 </span>
