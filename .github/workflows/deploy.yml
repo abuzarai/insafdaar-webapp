@@ -91,7 +91,7 @@ jobs:
           transport="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
           target="/home/ubuntu/insafdaar/github-releases/$GITHUB_SHA"
           $transport "ubuntu@$DEPLOY_HOST" "umask 077; mkdir -p '$target'"
-          rsync --partial --append-verify -e "$transport" release/ "ubuntu@$DEPLOY_HOST:$target/"
+          rsync --recursive --partial --append-verify -e "$transport" release/ "ubuntu@$DEPLOY_HOST:$target/"
           rsync -e "$transport" scripts/deploy-from-github.py "ubuntu@$DEPLOY_HOST:$target/deploy.py"
           $transport "ubuntu@$DEPLOY_HOST" "python3 '$target/deploy.py' '$GITHUB_SHA'"
 

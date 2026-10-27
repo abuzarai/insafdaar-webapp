@@ -400,6 +400,7 @@ class DeploymentSafety(unittest.TestCase):
         self.assertIn('--provenance=false --platform linux/amd64', source)
         self.assertIn('--network none --read-only', source)
         self.assertIn('scripts/deploy-from-github.py', source)
+        self.assertIn('rsync --recursive --partial --append-verify', source)
         self.assertNotIn('VOICE_REVISION_PENDING', source)
         self.assertNotIn(':latest', source)
         self.assertNotIn('GH_TOKEN', source)
