@@ -1,109 +1,65 @@
-name: Build and deploy platform
+name: Deploy changed webapp services
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'docker-compose.yml'
   workflow_dispatch:
+    inputs:
+      service:
+        description: Service to deploy
+        type: choice
+        options: [frontend, backend, both]
+        default: both
 
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-vm
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  changes:
     if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      DRAFTING_REVISION: b5a5a4976b9aaf4a3c71e605cee93c259e5a8923
-      VOICE_REVISION: 1370906a3e35168d8b5db1bfda9c8c986e9c43c7
+    outputs:
+      services: ${{ steps.select.outputs.services }}
     steps:
-      - name: Checkout webapp
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          REQUESTED: ${{ inputs.service }}
+        run: python3 scripts/deploy-changes.py >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    concurrency:
+      group: deploy-${{ matrix.service }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-
-      - name: Checkout pinned drafting service
-        uses: actions/checkout@v4
+      - uses: ./.github/actions/deploy-service
         with:
-          repository: abuzarai/drafting-assistant
-          ref: ${{ env.DRAFTING_REVISION }}
-          path: _services/drafting
-          persist-credentials: false
-
-      - name: Checkout pinned voice service
-        uses: actions/checkout@v4
-        with:
-          repository: abuzarai/voice-intake-agent
-          ref: ${{ env.VOICE_REVISION }}
-          path: _services/voice
-          persist-credentials: false
-
-      - name: Build four images on GitHub
+          service: ${{ matrix.service }}
         env:
           FRONTEND_API_BASE_URL: ${{ secrets.FRONTEND_API_BASE_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REF" = refs/heads/main
-          test -n "$FRONTEND_API_BASE_URL"
-          build() {
-            service="$1"; context="$2"; revision="$3"; shift 3
-            docker buildx build --load --provenance=false --platform linux/amd64 \
-              --label "org.opencontainers.image.revision=$revision" \
-              --tag "insafdaar-ci/$service:$GITHUB_SHA" "$@" "$context"
-          }
-          build backend backend "$GITHUB_SHA"
-          build frontend frontend "$GITHUB_SHA" \
-            --build-arg "REACT_APP_API_BASE_URL=$FRONTEND_API_BASE_URL"
-          build drafting _services/drafting "$DRAFTING_REVISION"
-          build voice _services/voice "$VOICE_REVISION"
-
-      - name: Check voice imports as its non-root user without network access
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm --network none --read-only --tmpfs /tmp \
-            --cap-drop ALL --security-opt no-new-privileges \
-            --entrypoint python "insafdaar-ci/voice:$GITHUB_SHA" \
-            -c 'from app.main import create_app; app = create_app(); print("Voice factory imported successfully")'
-
-      - name: Package the release
-        shell: bash
-        run: python3 scripts/package-release.py "$GITHUB_SHA" "$DRAFTING_REVISION" "$VOICE_REVISION"
-
-      - name: Transfer and deploy application images
-        shell: bash
-        env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          umask 077
-          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
-          [[ "$DEPLOY_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
-          test -n "$DEPLOY_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
-          mkdir -p ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          trap 'rm -f ~/.ssh/deploy_key' EXIT
-          transport="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
-          target="insafdaar/github-releases/$GITHUB_SHA"
-          $transport "$DEPLOY_USER@$DEPLOY_HOST" "umask 077; mkdir -p '$target'"
-          rsync --recursive --partial --append-verify -e "$transport" release/ "$DEPLOY_USER@$DEPLOY_HOST:$target/"
-          rsync -e "$transport" scripts/deploy-from-github.py "$DEPLOY_USER@$DEPLOY_HOST:$target/deploy.py"
-          $transport "$DEPLOY_USER@$DEPLOY_HOST" "python3 '$target/deploy.py' '$GITHUB_SHA'"
-
-      - name: Publish deployment result
-        if: success()
-        shell: bash
-        run: |
-          echo '### Application release installed' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Four application images are healthy. Database, uploads and existing legal RAG were preserved.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'External maintenance, voice admissions and background jobs remain closed until acceptance.' >> "$GITHUB_STEP_SUMMARY"

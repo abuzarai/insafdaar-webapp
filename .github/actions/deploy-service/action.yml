@@ -1,0 +1,87 @@
+name: Deploy one service
+description: Build one image on GitHub and replace only its VM container
+inputs:
+  service:
+    description: frontend, backend, voice, drafting or legal-rag
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Select build context
+      id: context
+      shell: bash
+      env:
+        SERVICE: ${{ inputs.service }}
+      run: |
+        set -euo pipefail
+        test "$GITHUB_REF" = refs/heads/main
+        test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+        test "$GITHUB_TRIGGERING_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+        case "$SERVICE:$GITHUB_REPOSITORY" in
+          frontend:abuzarai/insafdaar-webapp|backend:abuzarai/insafdaar-webapp)
+            echo "path=$SERVICE" >> "$GITHUB_OUTPUT" ;;
+          voice:abuzarai/voice-intake-agent|drafting:abuzarai/drafting-assistant|legal-rag:abuzarai/legal-rag-assistant)
+            echo 'path=.' >> "$GITHUB_OUTPUT" ;;
+          *) echo 'Invalid service/repository pair' >&2; exit 1 ;;
+        esac
+        if [ "$SERVICE" = frontend ]; then
+          test -n "$FRONTEND_API_BASE_URL"
+        fi
+
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Build selected image
+      uses: docker/build-push-action@v6
+      env:
+        DOCKER_BUILD_RECORD_UPLOAD: 'false'
+        DOCKER_BUILD_SUMMARY: 'false'
+      with:
+        context: ${{ steps.context.outputs.path }}
+        load: true
+        provenance: false
+        platforms: linux/amd64
+        tags: insafdaar-ci/${{ inputs.service }}:${{ github.sha }}
+        labels: org.opencontainers.image.revision=${{ github.sha }}
+        build-args: ${{ inputs.service == 'frontend' && format('REACT_APP_API_BASE_URL={0}', env.FRONTEND_API_BASE_URL) || '' }}
+        cache-from: ${{ inputs.service != 'frontend' && format('type=gha,scope={0}', inputs.service) || '' }}
+        cache-to: ${{ inputs.service != 'frontend' && format('type=gha,mode=max,scope={0}', inputs.service) || '' }}
+
+    - name: Check non-root voice imports without network access
+      if: inputs.service == 'voice'
+      shell: bash
+      run: |
+        docker run --rm --network none --read-only --tmpfs /tmp \
+          --cap-drop ALL --security-opt no-new-privileges \
+          --entrypoint python "insafdaar-ci/voice:$GITHUB_SHA" \
+          -c 'from app.main import create_app; create_app()'
+
+    - name: Package selected image
+      shell: bash
+      env:
+        TOOLS: ${{ github.action_path }}/../../..
+        SERVICE: ${{ inputs.service }}
+      run: python3 "$TOOLS/scripts/package-release.py" "$SERVICE" "$GITHUB_SHA"
+
+    - name: Transfer and deploy selected service
+      shell: bash
+      env:
+        TOOLS: ${{ github.action_path }}/../../..
+        SERVICE: ${{ inputs.service }}
+      run: |
+        set -euo pipefail
+        umask 077
+        [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+        [[ "$DEPLOY_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+        test -n "$DEPLOY_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+        mkdir -p ~/.ssh
+        printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+        printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        trap 'rm -f ~/.ssh/deploy_key' EXIT
+        transport="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
+        release_id="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+        target="insafdaar/service-releases/$SERVICE/$release_id"
+        $transport "$DEPLOY_USER@$DEPLOY_HOST" "umask 077; mkdir -p '$target'"
+        rsync --recursive --partial --append-verify -e "$transport" release/ "$DEPLOY_USER@$DEPLOY_HOST:$target/"
+        rsync -e "$transport" "$TOOLS/scripts/deploy-from-github.py" "$DEPLOY_USER@$DEPLOY_HOST:$target/deploy.py"
+        $transport "$DEPLOY_USER@$DEPLOY_HOST" "python3 '$target/deploy.py' '$SERVICE' '$release_id'"
+        echo "Deployed $SERVICE at $GITHUB_SHA; other containers preserved." >> "$GITHUB_STEP_SUMMARY"
