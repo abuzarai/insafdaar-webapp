@@ -206,13 +206,19 @@ Node processes do not start PostgreSQL, Weaviate or the Python services.
 ## Deployment
 
 The platform runs with Docker Compose behind an HTTPS reverse proxy.
-Production releases use a manual, owner-approved installation process with
-backup and migration checks. Intake and background jobs stay disabled until
-post-installation checks are complete.
+Pushing to `main` runs the [deployment workflow](.github/workflows/deploy.yml):
+GitHub builds the backend, frontend and pinned drafting/voice services, checks
+voice startup imports without network access, and sends the images to the VM.
+The [application deployment script](scripts/deploy-from-github.py) replaces only
+those four containers, preserving PostgreSQL, uploads, credentials and legal RAG.
 
-See the [deployment workflow](.github/workflows/deploy.yml) and
-[deployment script](scripts/deploy.sh) for the release controls. Pushes to `main`
-do not trigger the candidate workflow.
+This workflow targets the existing provisioned VM. It verifies that database
+migration checksums already match the source; schema changes require separate
+preparation. Failures leave maintenance closed. Website reopening is a separate
+acceptance step, and voice admissions and background jobs remain disabled.
+To release a new drafting or voice revision, update its pinned commit in the
+webapp workflow. Only the webapp workflow deploys; sibling deployment workflows
+stay disabled.
 
 ## License
 

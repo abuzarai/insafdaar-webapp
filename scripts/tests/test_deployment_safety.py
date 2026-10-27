@@ -389,47 +389,36 @@ class DeploymentSafety(unittest.TestCase):
         self.assertNotEqual(self.invoke(migrate=True).returncode, 0)
         self.assertFalse((self.base/'generated.sql').exists())
 
-    def test_workflow_only_dispatches_with_solo_owner_approval(self):
+    def test_workflow_builds_pinned_sources_on_main_for_solo_owner(self):
         source = (ROOT/'.github/workflows/deploy.yml').read_text()
         triggers = source.split('\npermissions:')[0]
         self.assertIn('workflow_dispatch:', triggers)
-        self.assertNotIn('workflow_call:', triggers)
-        self.assertNotIn('\n  push:', triggers)
-        self.assertNotIn('environment: production', source)
-        self.assertNotIn('prevent_self_review', source)
-        self.assertNotIn('gh api', source)
-        self.assertNotIn('GH_TOKEN', source)
-        self.assertNotIn('actions: read', source)
-        self.assertIn('needs: approval-gate', source)
-        install = source.split('\n  install-paused:', 1)[1]
-        self.assertIn('if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner', install)
-        self.assertNotIn('ref: main', source)
+        self.assertIn('\n  push:\n    branches: [main]', triggers)
+        self.assertIn('if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner', source)
+        self.assertIn('test "$GITHUB_REF" = refs/heads/main', source)
+        self.assertIn('ref: ${{ github.sha }}', source)
+        self.assertIn('--provenance=false --platform linux/amd64', source)
+        self.assertIn('--network none --read-only', source)
+        self.assertIn('scripts/deploy-from-github.py', source)
+        self.assertNotIn('VOICE_REVISION_PENDING', source)
         self.assertNotIn(':latest', source)
-        self.assertNotIn('git clone', source)
-        self.assertNotIn('docker load', source)
+        self.assertNotIn('GH_TOKEN', source)
 
-    def test_solo_owner_gate_checks_identity_ref_event_and_release_inputs(self):
-        source = (ROOT/'.github/workflows/deploy.yml').read_text()
-        gate = source.split('\n  install-paused:', 1)[0].split('        run: |\n', 1)[1].split('        shell: bash', 1)[0]
-        gate = textwrap.dedent(gate)
-        env = {'PATH': str(self.bin), 'HOME': str(self.base),
-               'GITHUB_ACTOR': 'fictional-owner', 'GITHUB_TRIGGERING_ACTOR': 'fictional-owner',
-               'GITHUB_REPOSITORY_OWNER': 'fictional-owner', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
-               'GITHUB_REF': 'refs/heads/main', 'RELEASE_ID': 'fictional-release', 'MANIFEST_SHA256': 'a'*64}
-        bash = shutil.which('bash')
-        self.assertIsNotNone(bash)
-        result = subprocess.run([bash, '--noprofile', '--norc', '-c', gate], env=env, text=True, capture_output=True, timeout=5)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        for key, value in [('GITHUB_ACTOR', 'collaborator'), ('GITHUB_TRIGGERING_ACTOR', 'collaborator'),
-                           ('GITHUB_EVENT_NAME', 'push'), ('GITHUB_REF', 'refs/heads/feature'),
-                           ('RELEASE_ID', '../unreviewed'), ('MANIFEST_SHA256', 'invalid')]:
-            with self.subTest(key=key):
-                result = subprocess.run([bash, '--noprofile', '--norc', '-c', gate], env={**env, key: value}, text=True, capture_output=True, timeout=5)
-                self.assertNotEqual(result.returncode, 0)
-        missing_actor = {key: value for key, value in env.items() if key != 'GITHUB_TRIGGERING_ACTOR'}
-        result = subprocess.run([bash, '--noprofile', '--norc', '-c', gate], env=missing_actor, text=True, capture_output=True, timeout=5)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(self.calls(), [])
+    def test_application_deploy_preserves_database_and_keeps_admissions_closed(self):
+        source = (ROOT/'scripts/deploy-from-github.py').read_text()
+        self.assertIn('BEGIN READ ONLY', source)
+        self.assertIn("db['migrations'] == expected", source)
+        self.assertIn("db['paused'] is True", source)
+        self.assertIn("settings['DB_USER'] == 'insafdaar_runtime'", source)
+        self.assertIn("'INTAKE_V2_ENABLED': 'false'", source)
+        self.assertIn("'BACKGROUND_JOBS_ENABLED': 'false'", source)
+        self.assertIn("'LIVE_ENABLED': 'false'", source)
+        self.assertIn("'--no-deps', '--no-build'", source)
+        self.assertIn("current['Id'] == old['Id']", source)
+        self.assertNotIn('compose down', source)
+        self.assertNotIn('docker build', source)
+        self.assertNotIn('DROP DATABASE', source)
+        self.assertNotIn('ALTER ROLE', source)
 
 
 if __name__ == '__main__':
