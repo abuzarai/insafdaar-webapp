@@ -15,6 +15,7 @@ test.each([
   ["LIVE_MODEL", "VOICE_LIVE_MODEL", ""],
   ["LIVE_BOOTSTRAP_SECRET", "VOICE_LIVE_BOOTSTRAP_SECRET", ""],
   ["LIVE_FREE_TIER_ATTESTED", "VOICE_LIVE_FREE_TIER_ATTESTED", "false"],
+  ["LIVE_STUN_URL", "VOICE_LIVE_STUN_URL", ""],
 ])("Compose maps %s only from its dedicated runtime setting", (target, source, fallback) => {
   expect(voice).toContain(`      ${target}: \u0024{${source}:-${fallback}}`);
 });
@@ -29,6 +30,14 @@ test("server admission config and bounded one-worker voice deployment remain exp
   expect(example).toContain("INTAKE_V2_ENABLED=false");
   expect(example).toContain("VOICE_LIVE_MODEL=\n");
   expect(example).toContain("VOICE_LIVE_FREE_TIER_ATTESTED=false");
+});
+
+test("voice media range is container-local and both media and HTTP default to loopback", () => {
+  expect(voice).toContain('"127.0.0.1:8002:8000"');
+  expect(voice).toContain("${VOICE_MEDIA_BIND_ADDRESS:-127.0.0.1}");
+  expect(voice).toContain("${VOICE_MEDIA_PORT_START:-50000}-${VOICE_MEDIA_PORT_END:-50031}/udp");
+  expect(voice).toContain('net.ipv4.ip_local_port_range: "${VOICE_MEDIA_PORT_START:-50000} ${VOICE_MEDIA_PORT_END:-50031}"');
+  expect(voice).not.toContain("network_mode: host");
 });
 
 test("frontend build inputs contain no voice credentials or direct Python URL", () => {

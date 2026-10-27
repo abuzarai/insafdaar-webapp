@@ -212,12 +212,17 @@ services:
       LIVE_MODEL: ${VOICE_LIVE_MODEL:-}
       LIVE_BOOTSTRAP_SECRET: ${VOICE_LIVE_BOOTSTRAP_SECRET:-}
       LIVE_FREE_TIER_ATTESTED: ${VOICE_LIVE_FREE_TIER_ATTESTED:-false}
+      LIVE_STUN_URL: ${VOICE_LIVE_STUN_URL:-}
       LIVE_CAPABILITY_TTL_SECONDS: 300
       LIVE_MAX_SESSIONS: 1
       LIVE_ADMISSIONS_PER_MINUTE: 1
       CORS_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "127.0.0.1:8002:8000"   # local diagnostics; browser signaling goes through Express
+      - "${VOICE_MEDIA_BIND_ADDRESS:-127.0.0.1}:${VOICE_MEDIA_PORT_START:-50000}-${VOICE_MEDIA_PORT_END:-50031}:${VOICE_MEDIA_PORT_START:-50000}-${VOICE_MEDIA_PORT_END:-50031}/udp"
+    sysctls:
+      # Keep media sockets inside the published range, in this container only.
+      net.ipv4.ip_local_port_range: "${VOICE_MEDIA_PORT_START:-50000} ${VOICE_MEDIA_PORT_END:-50031}"
     # Live media/proposals are ephemeral. Historical audio files are left on disk,
     # but are not mounted into the new runtime.
     mem_limit: 256m
