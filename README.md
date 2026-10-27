@@ -1,7 +1,7 @@
 # Insafdaar: AI-Powered Legal Case Management System
 
 > **Final Year Project** · Built in collaboration with **Insafdaar**, a Pakistani legal firm.  
-> A full-stack platform with three user portals (Client, Advocate, Admin) and integrated AI microservices.
+> A full-stack platform with Client, Advocate and Admin portals and integrated AI services.
 
 [![License](https://img.shields.io/badge/License-PolyForm_Noncommercial-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -9,329 +9,212 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docker.com)
 
----
+Insafdaar helps Pakistani law firms manage client intake, advocate assignment,
+contracts and ongoing case work. Legal research, document drafting and optional
+voice intake support that workflow alongside documents, meetings and billing.
 
-## What Is This?
+## Portals
 
-Insafdaar is a legal case management platform for Pakistani law firms. It digitises the case lifecycle, from client intake to court filing, across three portals:
+| Role | Main workflows |
+|------|----------------|
+| Client | Create a case and provide intake/documents; select advocate preferences; track cases, contracts and meetings; view invoices, upload payment proof, leave feedback and use legal chat. |
+| Advocate | Review assignments; discuss and prepare cases; check/request documents; draft legal documents and contracts; sign contracts; record hearings, stages and closure; manage a professional profile. |
+| Admin | Manage clients and advocate verification; review assignments, contracts and meetings; manage billing and payment verification; monitor notifications and platform performance. |
 
-- **Client Portal**: Submit cases, communicate with advocates, sign contracts, pay invoices
-- **Advocate Portal**: Manage cases, prepare filings, draft legal documents, track hearings, close cases
-- **Admin Portal**: Assign advocates, approve contracts/meetings, manage billing, monitor performance
+JWT authentication and role middleware protect application workflows. Case access
+and internal drafting context are scoped to the relevant client or assigned advocate.
+The legal assistant also supports limited guest queries.
 
-The platform runs three AI microservices (voice intake, document drafting, legal RAG). It also uses a state-machine case lifecycle, OTP-signed e-contracts, automated advocate matching, PDF invoices with payment verification, OCR document extraction, Google Calendar/Meet integration, and scheduled email reminders.
+## Case journey
 
----
+1. A client creates a draft case, supplies intake details and uploads supporting
+   documents. With voice intake enabled, the client reviews the proposed details,
+   confirms the exact revision and submits them before matching.
+2. Advocate matching and client preferences feed assignment review. The assigned
+   advocate can accept or reject; rejection returns the case for matching review.
+3. Discussion and meeting approval lead into contract preparation, OTP signatures
+   and admin approval. Rejected meetings or contracts return for revision.
+4. Contract approval activates the case. Advocates then track preparation,
+   document requests, hearings, case stages and eventual closure, while clients
+   follow progress and related billing.
 
-## User Portals
+`CASE_ACTIVE` completes the assignment/contract activation state machine. It does
+not mean the legal matter is finished; ongoing case-work tracking continues after
+activation.
 
-### Client Portal
+## Architecture
 
-| Feature | Description |
-|---------|-------------|
-| **Case Initiation** | Create a case draft and complete an AI-guided bilingual (Urdu/English) voice interview for structured intake |
-| **Document Upload** | Upload supporting documents (CNIC, FIR, etc.) for your case |
-| **Advocate Matching** | View AI-ranked advocate candidates based on case details and select your preferred advocate |
-| **Case Dashboard** | Track all your cases through every lifecycle stage with progress indicators |
-| **E-Contract Signing** | Review, OTP-verify, and digitally sign the advocate-client contract |
-| **Billing & Payments** | View invoices and vouchers, upload payment proof for admin verification |
-| **Meeting Scheduling** | View approved advocate meetings with auto-generated Google Meet links |
-| **Notifications** | Real-time notifications for case updates, billing, contract status |
-| **Feedback** | Rate and review your assigned advocate |
-| **Legal Assistant** | Full-page RAG chatbot and floating widget for legal queries grounded in Pakistani case law |
-
-### Advocate Portal
-
-| Feature | Description |
-|---------|-------------|
-| **Case Assignment** | Accept or reject assigned cases with full case details and client information |
-| **Case Discussion** | Request meetings with clients (subject to admin approval) with auto-generated Google Meet links |
-| **Case Preparation** | Full preparation checklist: verify client documents, request missing docs, upload evidence |
-| **AI Document Drafting** | Generate complete legal documents (plaints, written statements, affidavits, appeals) from case data using Gemini AI. Regenerate specific sections, save drafts, export as DOCX/PDF |
-| **AI Contract Drafting** | AI-generate advocate-client contracts with similar regenerate/save/export workflow |
-| **Hearing Management** | Create hearing records, track attendance, record proceedings, attach evidence and draft documents per hearing |
-| **Case Stages Tracking** | Mark case lifecycle stages as completed with progress tracking |
-| **Case Closure** | Create and update closure reports for completed cases |
-| **E-Contract Signing** | Create contracts with versioning, upload attachments, and sign via OTP |
-| **Voucher Access** | View case-linked payment vouchers |
-| **Profile Management** | Manage bar details, specialization, experience, work history, education, availability schedule, and verification documents |
-| **Notifications** | Receive alerts for case assignments, contract status, meeting approvals |
-
-### Admin Portal
-
-| Feature | Description |
-|---------|-------------|
-| **Dashboard** | System-wide stats: total users, clients, advocates, active cases |
-| **Client Management** | Full CRUD: view, edit, delete clients. Access their dashboard, cases, billing, notifications, feedback |
-| **Advocate Management** | Full CRUD with document verification workflow (approve/reject per doc type), approve/unapprove for public listing |
-| **Case Assignment** | View assignment queue, review client intake data, run AI advocate matching, assign advocate |
-| **Contract Approval** | Review advocate-client contracts, approve (activates case) or reject (sends for revision) |
-| **Meeting Approval** | Review and approve/reject meeting requests. Approval creates a Google Calendar event with a Meet link |
-| **Billing & Payments** | Create vouchers (standalone or per-case), generate 3-panel PDF invoices with bank details, send to client, view billing history, verify/reject payment proofs, manually override payment status |
-| **Performance Monitoring** | Track total requests, average latency, error rates, unique users. Timeseries metrics, slow endpoint identification, system metrics (memory/CPU/uptime), per-endpoint stats, status code distribution, traffic data |
-| **Notifications** | Admin alert bell for new registrations, case updates, and system events |
-
----
-
-## Case Lifecycle
-
-The platform uses a state machine with 13 states, with every transition logged:
-
-```
-DRAFT → INTAKE_STARTED → MATCHING_REVIEW → ADVOCATE_ASSIGNED
-                                                    │
-                                              ┌─────┴─────┐
-                                              │           │
-                                          ACCEPTED    REJECTED →
-                                                       MATCHING_REVIEW
-                                              │
-                                    MEETING_PENDING_ADMIN
-                                              │
-                                      ┌───────┴───────┐
-                                      │               │
-                                MEETING_APPROVED    REJECTED → ACCEPTED
-                                      │
-                            CONTRACT_PENDING_SIGNATURES
-                                      │
-                          CONTRACT_PENDING_ADMIN_APPROVAL
-                                      │
-                              ┌───────┴───────┐
-                              │               │
-                         CASE_ACTIVE      REJECTED →
-                            (terminal)    CONTRACT_PENDING_SIGNATURES
+```text
+React SPA (Client / Advocate / Admin)
+  |
+  +-- HTTP API --> Express application API
+  |                 +-- PostgreSQL (business records)
+  |                 +-- Uploaded files
+  |                 +-- Legal RAG --> Gemini embeddings + Weaviate
+  |                 |                  --> Gemini answers and citations
+  |                 +-- Drafting --> Gemini generation / regeneration / exports
+  |                 |     +-- Express internal API: case/intake/documents,
+  |                 |                              save drafts
+  |                 +-- Voice Live --> Gemini Live
+  |                 +-- SMTP email / Google Calendar and Meet
+  |
+  +-- Direct WebRTC media/data --------------------> Voice Live peer
+      (admission, signaling and control go through Express)
 ```
 
----
+Express owns application authorization and durable business data: users, cases,
+assignments, contracts, billing, conversations, reviewed intake and saved drafts.
+PostgreSQL stores these records; the backend manages uploaded documents, evidence
+and payment proofs under `backend/uploads`.
 
-## AI Microservices
+The Python services provide AI processing behind service-authenticated HTTP APIs.
+They do not replace Express's role and case-access checks. Drafting callbacks use
+an internal shared key and assignment-scoped Express endpoints; frontend nginx
+blocks `/internal/` routes from its public proxy.
 
-The platform integrates three standalone AI microservices via REST/webhook:
+### AI services
 
-| Service | Tech | Purpose |
-|---------|------|---------|
-| [legal-rag-assistant](https://github.com/abuzarai/legal-rag-assistant) | FastAPI · Weaviate · Gemini | RAG chatbot over Pakistani case law and CPC sections, returning answers with source citations |
-| [drafting-assistant](https://github.com/abuzarai/drafting-assistant) | FastAPI · Gemini API (2.5 Flash) | Generates, iterates, and exports legal documents (plaints, affidavits, written statements, contracts) |
-| [voice-intake-agent](https://github.com/abuzarai/voice-intake-agent) | FastAPI · WebSockets · Gemini | Bilingual (Urdu/English) intake interviews via WebSocket: Gemini audio transcription, edge-tts speech playback, Gemini classification of the case summary |
+| Service | Purpose and integration |
+|---------|-------------------------|
+| [Legal RAG](https://github.com/abuzarai/legal-rag-assistant) | Express proxies legal questions to the protected Python API. Gemini embeds the query, Weaviate retrieves CPC/case-law chunks, and Gemini generates an answer with citations. Express persists conversations and guest usage. |
+| [Drafting](https://github.com/abuzarai/drafting-assistant) | Advocate preparation and contract actions call the Python service for generation jobs, section regeneration and DOCX/PDF export. It fetches case, submitted intake and document context through Express and saves drafts back to Express's `draft_sessions`. |
+| [Voice intake](https://github.com/abuzarai/voice-intake-agent) | A bilingual Urdu/English interview uses Gemini Live through a Python WebRTC peer. Express controls case-scoped admission, signaling, proposal persistence, review, confirmation and submission. |
 
-Additional AI/automation built into the main backend:
-- **Advocate Matching**: AI-powered candidate ranking based on case details
-- **Document OCR**: Background job extracting text from uploaded PNG/JPG/PDF using Tesseract.js and pdf-parse
-- **Scheduled Reminders**: Cron jobs for meeting (24h/6h) and court hearing email reminders
+Drafting uses Gemini with application case/intake/document context. Generation
+calls a legal-reference retrieval hook, but that hook is currently a stub returning
+no references. There is no operational Drafting-to-Legal-RAG integration yet.
 
----
+Weaviate stores the legal retrieval corpus separately from PostgreSQL. Corpus
+ingestion is a separate operation: starting the services does not populate legal
+knowledge. See the [RAG service README](https://github.com/abuzarai/legal-rag-assistant#readme)
+and [drafting service README](https://github.com/abuzarai/drafting-assistant#readme)
+for their configuration and usage.
 
-## System Architecture
+### Other integrations
 
-```
-                         Browser (HTTPS)
-                              │
-                              ▼
-                  host nginx :443 (TLS)
-              (HTTP :80 → 301 redirect)
-            ┌───────────────┴───────────────┐
-            │  / , /api/*                    │  /api/v1/* (REST + WebSocket)
-            ▼                                ▼
- ┌────────────────────────┐    ┌─────────────────────────────┐
- │   frontend container    │    │      voice-intake-agent     │
- │  (nginx :80 → host      │    │   (FastAPI + WS · :8000,    │
- │   :3000, SPA + /api    │    │    loopback-published)      │
- │   proxy to backend)     │    └─────────────────────────────┘
- └───────────┬────────────┘
-             │  /api/*  (JWT + internal keys)
-             ▼
- ┌──────────────────────────────┐
- │        Express Backend       │
- │    (Node.js + JWT · :5000)   │
- │                              │
- │  /api/auth/*        Auth/OTP │
- │  /api/client/*      Client   │
- │  /api/advocate/*    Advocate │
- │  /api/admin/*       Admin    │
- │  /api/legal-assistant → RAG  │
- │  /api/interviews    → Voice  │
- │  /api/drafting      → Draft  │
- │  /api/webhooks      AI hooks │
- └──────┬─────────────┬─────────┘
-        │             │
-        ▼             ▼
-  PostgreSQL     compose network (internal)
-  (127.0.0.1)    weaviate · legal-rag · drafting
-```
+- SMTP email delivers OTPs, notifications and scheduled meeting/hearing reminders.
+- Google Calendar integration creates events and Meet links for approved meetings,
+  subject to configured service-account access.
+- Billing includes vouchers, PDF invoices and uploaded payment proof for admin
+  verification. This workflow does not imply automated payment-gateway settlement.
+- Backend jobs perform document text extraction with Tesseract.js/pdf-parse and
+  scheduled reminders; advocate matching ranks candidates from case details.
 
-Only 22/80/443 are reachable from the internet; everything else lives on the compose network.
+### Privacy and voice boundaries
 
----
+Case documents, intake and legal queries can be sent to the configured AI providers
+for processing. Keep provider credentials and internal service keys server-side;
+use appropriate consent and access controls for sensitive legal information.
 
-## Deployment
+Voice intake is disabled by default. It requires explicit configuration,
+HTTPS or localhost microphone access, and separately verified WebRTC media
+reachability. The current adapter has no configured STUN/TURN servers. Browser
+media/data goes directly to the voice peer; Express and nginx do not tunnel it.
 
-Push to `main` in any of the four repos triggers an automated deploy:
+The client deliberately starts the interview with a processing/transcript
+disclosure. A model proposal remains unconfirmed until client review and
+exact-revision confirmation. Saved transcripts may be partial or differ from
+heard audio; owning-client transcript access is limited to 90 days after interview
+end. Live session state is ephemeral across process replacement. See the public
+[voice architecture](https://github.com/abuzarai/voice-intake-agent/blob/main/docs/architecture.md),
+[configuration](https://github.com/abuzarai/voice-intake-agent/blob/main/docs/configuration.md)
+and [transcript documentation](https://github.com/abuzarai/voice-intake-agent/blob/main/docs/transcripts.md)
+for service-level constraints.
 
-1. **Build**: GitHub Actions builds all five service images on a build runner with Docker layer caching.
-2. **Ship**: only images whose source changed are transferred to the production host (Oracle Cloud Infrastructure).
-3. **Apply**: `docker compose up -d` on the host; pending SQL migrations run automatically; container health checks gate the result.
+## Tech stack
 
-The pipeline runs on the webapp repo's pushes, on a 15-minute schedule (so AI-microservice pushes reach production quickly), and manually via *Actions → Deploy to Oracle VM → Run workflow*.
+| Layer | Main components |
+|-------|-----------------|
+| Frontend | React 18, TypeScript, React Router, Tailwind CSS, Axios, react-i18next |
+| Application API | Node.js 18+, Express 5, JWT role middleware, Multer uploads, PDFKit, Nodemailer, node-cron |
+| Data | PostgreSQL 15, backend-managed uploaded files, Weaviate legal corpus |
+| AI services | Python/FastAPI, Gemini generation and embeddings, Gemini Live/WebRTC |
+| Infrastructure | Docker Compose; nginx for frontend serving/proxying; host TLS/reverse proxy infrastructure for deployment |
 
----
+## Local development
 
-## Tech Stack
+### Prerequisites and repository layout
 
-**Backend**
-- Node.js 18 + Express 5: REST API server
-- PostgreSQL 15 with migrations: primary data store
-- JWT authentication with role-based middleware (client / advocate / admin)
-- Nodemailer: SMTP email (OTP, notifications, reminders)
-- Multer: file uploads (avatars, documents, evidence, payment proofs)
-- PDFKit: PDF generation for vouchers/invoices
-- Tesseract.js: OCR document text extraction
-- node-cron: scheduled jobs (reminders, extraction)
-- Google Calendar API: event/Meet link creation
-- Google API service-account auth: Calendar/Drive integration
-
-**Frontend**
-- React 18 + TypeScript: SPA (Create React App)
-- Tailwind CSS 3: utility-first styling
-- React Router 7: client-side routing
-- Axios: HTTP client with interceptors
-- Framer Motion: animations
-- Lucide React: icon library
-- react-i18next: bilingual (English/Urdu) internationalization
-- Service Worker: PWA registration
-
-**AI & Infrastructure**
-- Docker Compose: full-stack orchestration (db + backend + frontend + weaviate + the three AI microservices)
-- Weaviate: vector store for the legal RAG corpus
-- GitHub Actions: automated build/ship/apply pipeline
-- Oracle Cloud Infrastructure (OCI): VM hosting
-- Nginx: TLS termination and reverse proxying (host + containers)
-
----
-
-## Local Development
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
-- Node.js 18+ *(only needed for non-Docker setup)*
-
-### Quick Start with Docker (Recommended)
-
-The compose file builds the AI microservices from sibling clones, so clone all four repos side by side:
+Install [Docker and Docker Compose](https://docs.docker.com/get-docker/).
+Compose builds the AI services from sibling repositories. Use these directory
+names, including the underscore in `voice_intake_agent`:
 
 ```bash
-# 1. Clone the four repos into the same parent directory
 git clone https://github.com/abuzarai/insafdaar-webapp.git webapp
 git clone https://github.com/abuzarai/legal-rag-assistant.git
 git clone https://github.com/abuzarai/drafting-assistant.git
-git clone https://github.com/abuzarai/voice-intake-agent.git
+git clone https://github.com/abuzarai/voice-intake-agent.git voice_intake_agent
 cd webapp
-
-# 2. Set up environment
 cp .env.example .env
-# Edit .env with your database password, JWT secret, Gemini keys, etc.
+```
 
-# 3. Start the full stack
+### Configure services and data
+
+Edit the root environment file using [.env.example](.env.example) as a template:
+
+- Replace placeholders, match PostgreSQL server/application passwords, and set
+  a JWT secret and shared internal API key.
+- Supply per-service Gemini credentials and the Weaviate API key. Set a stable,
+  nonblank `CLUSTER_HOSTNAME` for Weaviate.
+- Set browser-reachable API/CORS origins. Configure SMTP and Google Calendar
+  credentials if those integrations are needed.
+- Provision `../legal-rag-assistant/service_account.json` for the Compose Drive
+  credential mount. Copying the environment template does not create this file.
+- Leave reviewed voice intake off unless its provider, consent and media
+  prerequisites have been configured and verified.
+
+Before starting application services, provision a compatible PostgreSQL schema
+and apply the required reviewed migrations. The repository currently has no
+supported one-command local database bootstrap helper. Review the
+[schema dump](insafdaar_schema.sql) and [migration files](backend/migrations/)
+with your database setup; the baseline alone is not a completeness guarantee,
+and fresh-client compatibility of the dump has not been verified.
+
+Compose does not initialize the application schema. The production
+[apply-migrations script](scripts/apply-migrations.sh) requires approved release,
+lock, backup and maintenance evidence; it is not a local initializer.
+
+### Start the configured stack
+
+Once credentials, schema and required service data are ready:
+
+```bash
 docker compose up -d --build
-
-# 4. Initialize the database (first time only)
-docker exec -i insafdaar-db psql -U postgres -d insafdaar_db < insafdaar_schema.sql
-bash scripts/apply-migrations.sh
 ```
 
-The app is now running at:
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
-- **Database**: localhost:5432
+This orchestrates seven services: PostgreSQL, backend, frontend, Weaviate,
+Legal RAG, drafting and voice. Startup alone does not establish a ready-to-use
+application or an ingested legal corpus.
 
-### Without Docker
+| Local endpoint | Address |
+|----------------|---------|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:5000 |
+| PostgreSQL | `127.0.0.1:5432` |
+| Voice HTTP diagnostics | `127.0.0.1:8002` (not the browser signaling endpoint) |
 
-**Backend:**
-```bash
-cd backend
-cp .env.example .env   # Configure DB credentials
-npm install
-npm start              # Runs on http://localhost:5000
-```
+RAG, drafting and Weaviate are internal services in this Compose configuration.
+Host TLS nginx is separate deployment infrastructure, not a Compose service.
 
-**Frontend:**
-```bash
-cd frontend
-cp .env.example .env   # Set REACT_APP_API_BASE_URL=http://localhost:5000
-npm install
-npm start              # Runs on http://localhost:3000
-```
+For native Node development, use Node.js 18+ and `npm install` / `npm start` in
+`backend` and `frontend`. Configure backend environment variables manually with
+reachable database and AI service URLs; there is no backend `.env.example`.
+The root template uses Docker service hostnames. The frontend has its own
+[environment template](frontend/.env.example) for the browser API URL. Native
+Node processes do not start PostgreSQL, Weaviate or the Python services.
 
----
+## Deployment
 
-## Database Schema & Migrations
+The platform runs with Docker Compose behind an HTTPS reverse proxy.
+Production releases use a manual, owner-approved installation process with
+backup and migration checks. Intake and background jobs stay disabled until
+post-installation checks are complete.
 
-- Baseline: `insafdaar_schema.sql` (complete schema with tables, indexes, enums)
-- Migrations: numbered SQL files in `backend/migrations/` (idempotent, `IF NOT EXISTS`)
-- Apply with `scripts/apply-migrations.sh` (docker): tracked per-migration state in a `schema_migrations` bookkeeping table.
-
-Key tables: `users`, `client_profiles`, `advocate_profiles`, `client_cases`, `case_lifecycle_events`, `case_matching_runs`, `case_match_candidates`, `case_documents`, `client_documents`, `case_contracts`, `case_contract_signatures`, `case_intake_sessions`, `case_invoices`, `client_billing`, `client_payment_proofs`, `case_hearings`, `case_hearing_evidence`, `case_hearing_drafts`, `case_closure_reports`, `case_preparation_items`, `case_meetings`, `case_voice_notes`, `case_stage_progress`, `notifications` (per role), `api_logs`, `legal_assistant_conversations`, `legal_assistant_guest_usage`, `document_extraction_jobs`.
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in:
-
-| Variable | Description |
-|----------|-------------|
-| `POSTGRES_PASSWORD` / `DB_PASSWORD` | PostgreSQL password (same value) |
-| `JWT_SECRET` | Secret for signing JWT tokens |
-| `INTERNAL_API_KEY` | Shared secret for internal microservice auth |
-| `SMTP_USER` / `SMTP_PASS` | Gmail SMTP credentials |
-| `RAG_GEMINI_API_KEY` / `DRAFTING_GEMINI_API_KEY` / `VOICE_GEMINI_API_KEY` | Gemini keys per AI service (optional in local dev) |
-| `WEAVIATE_API_KEY` | Weaviate auth key |
-| `VOICE_WEBHOOK_SECRET` | Secret the voice service signs webhooks with |
-| `DRIVE_ROOT_FOLDER_ID` | Google Drive corpus folder for legal-rag ingestion |
-| `LEGAL_RAG_API_URL` / `DRAFTING_ASSISTANT_URL` | Compose network URLs (`http://legal-rag:8080`, `http://drafting:8080`) |
-| `CORS_ALLOWED_ORIGINS` | Allowed browser origins (comma separated) |
-| `REACT_APP_API_BASE_URL` / `REACT_APP_VOICE_SERVICE_URL` | Browser-facing API/voice URLs baked into the frontend build |
-| `CLUSTER_HOSTNAME` | Weaviate raft identity (keep fixed per environment) |
-| `GOOGLE_SERVICE_ACCOUNT_*` | Google Calendar service account credentials |
-
----
-
-## Repository Structure
-
-```
-webapp/
-├── backend/
-│   ├── controllers/        # Route handler logic
-│   ├── routes/             # Express route definitions
-│   ├── middleware/         # Auth, role, upload, logging guards
-│   ├── migrations/         # SQL migration files
-│   ├── jobs/               # Cron job implementations
-│   ├── services/           # Business logic (OCR, etc.)
-│   ├── utils/              # Lifecycle, payments, contracts, calendar, mailer
-│   ├── tests/              # Jest test suite
-│   └── server.js           # Entry point
-├── frontend/
-│   ├── src/
-│   │   ├── components/     # Dashboard components per role
-│   │   │   ├── ClientDashboard/
-│   │   │   ├── AdvocateDashboard/
-│   │   │   ├── AdminDashboard/
-│   │   │   ├── LegalAssistantChat/
-│   │   │   └── VoiceInterview/
-│   │   ├── pages/          # Route-level page components
-│   │   ├── context/        # i18n, auth state
-│   │   └── utils/          # Auth helpers, API config
-│   └── Dockerfile
-├── scripts/
-│   ├── deploy.sh           # Production apply (pull, migrate, compose up)
-│   └── apply-migrations.sh # Migration runner (marker-tracked)
-├── .github/workflows/      # CI pipeline (build, ship, deploy)
-├── insafdaar_schema.sql    # Baseline PostgreSQL schema
-├── docker-compose.yml      # Full-stack orchestration
-└── .env.example            # Environment template
-```
-
----
+See the [deployment workflow](.github/workflows/deploy.yml) and
+[deployment script](scripts/deploy.sh) for the release controls. Pushes to `main`
+do not trigger the candidate workflow.
 
 ## License
 
-Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use requires written permission from the author.
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Commercial use requires written permission from the author.

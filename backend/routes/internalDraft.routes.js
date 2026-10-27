@@ -1,18 +1,41 @@
 import express from "express";
 
 import pool from "../db.js";
+import { acceptedIntake } from "../services/reviewedIntake.service.js";
 import { internalOnly } from "../middleware/internalOnly.js";
 
 const router = express.Router();
 
 router.use(internalOnly);
 
+async function requireAssignedCase(req, res, next) {
+  const caseId = Number(req.body?.case_id);
+  const advocateId = Number(req.body?.advocate_id);
+  if (!Number.isSafeInteger(caseId) || caseId <= 0 ||
+      !Number.isSafeInteger(advocateId) || advocateId <= 0) {
+    return res.status(400).json({ error: "Valid case_id and advocate_id are required" });
+  }
+  try {
+    const access = await pool.query(
+      `SELECT id, user_id, intake_protocol FROM public.client_cases
+       WHERE id = $1 AND assigned_advocate_id = $2 LIMIT 1`,
+      [caseId, advocateId]
+    );
+    if (!access.rows.length) return res.status(404).json({ error: "Case not found" });
+    res.locals.draftCase = access.rows[0];
+    next();
+  } catch {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 router.post("/case-context", async (req, res) => {
   try {
     const caseId = Number(req.body?.case_id);
     const advocateId = Number(req.body?.advocate_id);
-    if (!caseId || !advocateId) {
-      return res.status(400).json({ error: "case_id and advocate_id are required" });
+    if (!Number.isSafeInteger(caseId) || caseId <= 0 ||
+        !Number.isSafeInteger(advocateId) || advocateId <= 0) {
+      return res.status(400).json({ error: "Valid case_id and advocate_id are required" });
     }
 
     const result = await pool.query(
@@ -57,8 +80,13 @@ router.post("/case-context", async (req, res) => {
   }
 });
 
-router.post("/intake-analysis", async (req, res) => {
+router.post("/intake-analysis", requireAssignedCase, async (req, res) => {
   try {
+    if (res.locals.draftCase.intake_protocol === "live_v2") {
+      const accepted = await acceptedIntake(pool, Number(res.locals.draftCase.id));
+      if (!accepted) return res.status(409).json({ error: "Submitted intake required" });
+      return res.json(accepted);
+    }
     const caseId = Number(req.body?.case_id);
     if (!caseId) {
       return res.status(400).json({ error: "case_id is required" });
@@ -88,30 +116,10 @@ router.post("/intake-analysis", async (req, res) => {
   }
 });
 
-router.post("/documents", async (req, res) => {
+router.post("/documents", requireAssignedCase, async (req, res) => {
   try {
-    const caseId = Number(req.body?.case_id);
-    const userId = Number(req.body?.user_id);
-    const advocateId = Number(req.body?.advocate_id);
-    if (!caseId || !userId || !advocateId) {
-      return res.status(400).json({ error: "case_id, user_id and advocate_id are required" });
-    }
-
-    const access = await pool.query(
-      `
-      SELECT 1
-      FROM public.client_cases
-      WHERE id = $1 AND assigned_advocate_id = $2
-      LIMIT 1
-      `,
-      [caseId, advocateId]
-    );
-
-    if (!access.rowCount) {
-      const exists = await pool.query("SELECT 1 FROM public.client_cases WHERE id = $1", [caseId]);
-      if (!exists.rowCount) return res.status(404).json({ error: "Case not found" });
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    const caseId = res.locals.draftCase.id;
+    const userId = res.locals.draftCase.user_id;
 
     const [caseDocs, clientDocs] = await Promise.all([
       pool.query(
@@ -145,7 +153,7 @@ router.post("/documents", async (req, res) => {
   }
 });
 
-router.post("/save", async (req, res) => {
+router.post("/save", requireAssignedCase, async (req, res) => {
   try {
     const caseId = Number(req.body?.case_id);
     const advocateId = Number(req.body?.advocate_id);
@@ -157,36 +165,27 @@ router.post("/save", async (req, res) => {
       return res.status(400).json({ error: "case_id, advocate_id, document_type, generation_id, draft_json are required" });
     }
 
-    const access = await pool.query(
-      `
-      SELECT 1
-      FROM public.client_cases
-      WHERE id = $1 AND assigned_advocate_id = $2
-      LIMIT 1
-      `,
-      [caseId, advocateId]
-    );
-    if (!access.rowCount) {
-      const exists = await pool.query("SELECT 1 FROM public.client_cases WHERE id = $1", [caseId]);
-      if (!exists.rowCount) return res.status(404).json({ error: "Case not found" });
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    await pool.query(
+    const saved = await pool.query(
       `
       INSERT INTO public.draft_sessions
         (case_id, document_type, generation_id, draft_json, advocate_id)
-      VALUES ($1, $2, $3, $4::jsonb, $5)
+      SELECT id, $2, $3, $4::jsonb, $5
+      FROM public.client_cases
+      WHERE id = $1 AND assigned_advocate_id = $5
       ON CONFLICT (generation_id) DO UPDATE
-      SET case_id = EXCLUDED.case_id,
-          document_type = EXCLUDED.document_type,
+      SET document_type = EXCLUDED.document_type,
           draft_json = EXCLUDED.draft_json,
-          advocate_id = EXCLUDED.advocate_id,
           updated_at = NOW()
+      WHERE draft_sessions.case_id = EXCLUDED.case_id
+        AND draft_sessions.advocate_id = EXCLUDED.advocate_id
+      RETURNING generation_id
       `,
       [caseId, documentType, generationId, JSON.stringify(draftJson), advocateId]
     );
 
+    if (!saved.rowCount) {
+      return res.status(409).json({ error: "Draft save conflicts with current case or generation ownership" });
+    }
     return res.json({ saved: true });
   } catch (err) {
     return res.status(500).json({ error: err.message });

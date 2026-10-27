@@ -69,28 +69,32 @@ export async function createFeedback(req, res) {
 
     const aud = normalizeAudience(audience);
     const cid = parseCaseId(caseId);
+    if (caseId != null && String(caseId).trim() && (!Number.isSafeInteger(cid) || cid <= 0)) return res.status(400).json({ error: "Choose a valid case" });
+    let caseAdvocateId = null;
 
     // If caseId provided, verify ownership
     if (cid) {
       const own = await pool.query(
-        `SELECT id FROM public.client_cases WHERE id=$1 AND user_id=$2`,
+        `SELECT id, assigned_advocate_id FROM public.client_cases WHERE id=$1 AND user_id=$2`,
         [cid, userId]
       );
       if (own.rows.length === 0) {
         return res.status(404).json({ error: "Case not found for this user" });
       }
+      caseAdvocateId = own.rows[0].assigned_advocate_id;
     }
 
     let advId = null;
     if (aud === "ADVOCATE") {
-      if (!advocateUserId) {
-        return res.status(400).json({ error: "advocateUserId is required for advocate feedback" });
+      if (cid) {
+        if (!caseAdvocateId || (advocateUserId && Number(advocateUserId) !== Number(caseAdvocateId))) return res.status(400).json({ error: "Choose a case with its assigned lawyer" });
+        advId = Number(caseAdvocateId);
+      } else {
+        if (!advocateUserId) return res.status(400).json({ error: "Choose a case with an assigned lawyer" });
+        const adv = await pool.query(`SELECT id FROM public.users WHERE id=$1`, [Number(advocateUserId)]);
+        if (adv.rows.length === 0) return res.status(404).json({ error: "Advocate not found" });
+        advId = Number(advocateUserId);
       }
-
-      // verify advocate exists (basic check)
-      const adv = await pool.query(`SELECT id FROM public.users WHERE id=$1`, [Number(advocateUserId)]);
-      if (adv.rows.length === 0) return res.status(404).json({ error: "Advocate not found" });
-      advId = Number(advocateUserId);
     }
 
     // store ratings as jsonb (flexible)

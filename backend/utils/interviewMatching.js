@@ -3,6 +3,8 @@
 //  - controllers/clientDashboard/startCase/startCase.controller.js
 //  - controllers/admin/client-access/start-case/startCase.admin.controller.js
 //  - controllers/advocateDashboard/cases/cases.controller.js
+import { acceptedIntake } from "../services/reviewedIntake.service.js";
+
 function normalizeArray(value) {
   if (!Array.isArray(value)) return [];
   return value.map((v) => String(v || "").trim().toLowerCase()).filter(Boolean);
@@ -80,6 +82,7 @@ function toStringOrNull(value) {
 }
 
 function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -212,6 +215,15 @@ function scoreCandidate(caseData, advocate) {
 }
 
 async function getLatestInterviewResult(db, caseId) {
+  const c = await db.query("SELECT intake_protocol FROM public.client_cases WHERE id=$1", [Number(caseId)]);
+  if (c.rows[0]?.intake_protocol === "live_v2") {
+    const accepted = await acceptedIntake(db, Number(caseId));
+    if (!accepted) return null;
+    return { sessionId: null, revisionId: accepted.revisionId,
+      meta: { status: "SUBMITTED", completionSource: "client_reviewed_revision", submittedAt: accepted.submittedAt,
+        resultHash: accepted.contentHash, inputTailComplete: false, modelSuggestionsUnverified: true },
+      summary: normalizeInterviewSummary(accepted.analysis), transcript: null, analysis: accepted.analysis };
+  }
   const r = await db.query(
     `
       SELECT

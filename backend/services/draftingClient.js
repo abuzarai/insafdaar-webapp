@@ -14,12 +14,17 @@ function getDraftingGenerateTimeoutMs() {
   return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : getDraftingTimeoutMs();
 }
 
-async function fetchDraftJob(jobId, timeoutMs = 20000) {
+async function fetchDraftJob(jobId, { caseId, advocateId }, timeoutMs = 20000) {
+  if (!Number.isSafeInteger(caseId) || caseId <= 0 ||
+      !Number.isSafeInteger(advocateId) || advocateId <= 0) {
+    return { ok: false, status: 400, payload: { error: "Valid case and advocate scope is required" } };
+  }
   const draftingBase = getDraftingAssistantBaseUrl();
   if (!draftingBase) {
     return { ok: false, status: 500, payload: { error: "DRAFTING_ASSISTANT_URL is not configured" } };
   }
-  const url = `${draftingBase.replace(/\/$/, "")}/draft/generate/${encodeURIComponent(jobId)}`;
+  const scope = new URLSearchParams({ case_id: String(caseId), advocate_id: String(advocateId) });
+  const url = `${draftingBase.replace(/\/$/, "")}/draft/generate/${encodeURIComponent(jobId)}?${scope}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -75,7 +80,7 @@ async function callDraftingAssistant(pathname, payload, asJson = true, timeoutMs
       const data = await upstream.json().catch(() => null);
       return {
         ok: false,
-        status: 502,
+        status: [400, 403, 404, 409, 422].includes(upstream.status) ? upstream.status : 502,
         payload: { error: data?.detail || data?.error || "Drafting assistant request failed" },
       };
     }

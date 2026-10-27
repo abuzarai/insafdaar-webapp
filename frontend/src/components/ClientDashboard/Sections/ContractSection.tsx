@@ -1,5 +1,5 @@
 import { formatStatus } from "../../common/formatStatus";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AuthedLink from "../../common/AuthedLink";
 import { FileText, CheckCircle2, PenSquare, RefreshCw, Paperclip, ShieldCheck } from "lucide-react";
 import { API_BASE_URL } from "../../../config";
@@ -53,9 +53,17 @@ function prettyFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function ContractSection() {
+export default function ContractSection({ caseId }: { caseId?: number } = {}) {
+  return <ContractView key={`${caseId}:${localStorage.getItem("token")}`} caseId={caseId} />;
+}
+
+function ContractView({ caseId }: { caseId?: number }) {
+  const alive = useRef(true);
+  const token = useRef(localStorage.getItem("token")).current;
+  const current = () => alive.current && token === localStorage.getItem("token");
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [cases, setCases] = useState<CaseItem[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>("");
+  const [selectedCaseId, setSelectedCaseId] = useState<string>(caseId ? String(caseId) : "");
   const [contract, setContract] = useState<ContractPayload | null>(null);
   const [typedFullName, setTypedFullName] = useState("");
   const [signatureNote, setSignatureNote] = useState("");
@@ -81,6 +89,7 @@ export default function ContractSection() {
   }, [selectedCaseId]);
 
   const loadCases = async () => {
+    if (caseId) return;
     const res = await fetch(`${API_BASE_URL}/api/client/dashboard/cases`, {
       headers: authHeaders(),
     });
@@ -92,15 +101,20 @@ export default function ContractSection() {
   };
 
   const loadContract = async (caseId: number) => {
+    if (!current()) return;
+    setContract(null);
     const res = await fetch(`${API_BASE_URL}/api/client/dashboard/contracts/cases/${caseId}`, {
       headers: authHeaders(),
     });
     const data = await safeJson(res);
     if (!res.ok) throw new Error(data?.error || "Failed to load contract");
+    if (!current()) return;
+    if (data?.contract && data.contract.caseId !== caseId) throw new Error("Contract case identity mismatch");
     setContract((data?.contract || null) as ContractPayload | null);
   };
 
   const refresh = async () => {
+    if (!current()) return;
     try {
       setAction("refresh");
       setLoading(true);
@@ -121,14 +135,16 @@ export default function ContractSection() {
   }, []);
 
   useEffect(() => {
-    if (!selectedNumericCaseId) return;
-    loadContract(selectedNumericCaseId).catch(() => {
+    if (caseId || !selectedNumericCaseId) return;
+    loadContract(selectedNumericCaseId).catch((e) => {
+      if (!current()) return;
+      setMsg(e.message);
       setContract(null);
     });
   }, [selectedNumericCaseId]);
 
   const requestOtp = async () => {
-    if (!selectedNumericCaseId) return;
+    if (!current() || !selectedNumericCaseId || !contract || contract.caseId !== selectedNumericCaseId) return;
     try {
       setAction("otpRequest");
       setLoading(true);
@@ -141,6 +157,7 @@ export default function ContractSection() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to request OTP");
 
+      if (!current()) return;
       setOtpRequestId(Number(data?.otpRequestId || 0) || null);
       setOtpSessionId("");
       setMsg("OTP sent to your email.");
@@ -153,7 +170,7 @@ export default function ContractSection() {
   };
 
   const verifyOtp = async () => {
-    if (!selectedNumericCaseId || !otpRequestId) return;
+    if (!current() || !selectedNumericCaseId || !otpRequestId || contract?.caseId !== selectedNumericCaseId) return;
     try {
       setAction("otpVerify");
       setLoading(true);
@@ -170,6 +187,7 @@ export default function ContractSection() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to verify OTP");
 
+      if (!current()) return;
       setOtpSessionId(String(data?.otpSessionId || ""));
       setOtpCode("");
       setMsg("OTP verified successfully. You can sign now.");
@@ -182,7 +200,7 @@ export default function ContractSection() {
   };
 
   const signContract = async () => {
-    if (!selectedNumericCaseId) return;
+    if (!current() || !selectedNumericCaseId || !contract || contract.caseId !== selectedNumericCaseId) return;
     try {
       setAction("sign");
       setLoading(true);
@@ -204,6 +222,8 @@ export default function ContractSection() {
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data?.error || "Failed to sign contract");
+      if (!current()) return;
+      if (data?.contract && data.contract.caseId !== selectedNumericCaseId) throw new Error("Contract case identity mismatch");
       setContract((data?.contract || null) as ContractPayload | null);
       setMsg("Contract signed successfully.");
     } catch (e: any) {
@@ -238,7 +258,7 @@ export default function ContractSection() {
 
       {msg ? <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">{msg}</div> : null}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+      {!caseId ? <div className="bg-white rounded-2xl border border-slate-200 p-4">
         <div className="text-xs text-slate-500 mb-2">Select case</div>
         <select
           value={selectedCaseId}
@@ -251,11 +271,11 @@ export default function ContractSection() {
             </option>
           ))}
         </select>
-      </div>
+      </div> : null}
 
-      {!contract ? (
+      {!contract && !msg && !loading ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 text-slate-600">No contract available for selected case yet.</div>
-      ) : (
+      ) : contract ? (
         <>
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
             <div className="flex items-center gap-2 text-slate-900 font-bold">
@@ -263,9 +283,15 @@ export default function ContractSection() {
               <span className="text-xs font-semibold px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{formatStatus(contract.status)}</span>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-              {contract.contractText}
-            </div>
+            <details key={`${contract.id}:${contract.versionNo}`} className="rounded-xl border border-slate-200 bg-slate-50">
+              <summary className="min-h-[44px] cursor-pointer rounded-xl p-4 text-sm font-semibold text-[#004aad] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                Read full agreement
+              </summary>
+              <div role="region" aria-label="Full agreement text" tabIndex={0}
+                className="max-h-[50vh] overflow-y-auto overscroll-contain border-t border-slate-200 p-4 text-sm text-slate-700 whitespace-pre-wrap break-words focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                {contract.contractText}
+              </div>
+            </details>
 
             <div className="rounded-xl border border-slate-200 p-4 space-y-2 bg-white">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -426,7 +452,7 @@ export default function ContractSection() {
             )}
           </div>
         </>
-      )}
+      ) : null}
     </section>
   );
 }

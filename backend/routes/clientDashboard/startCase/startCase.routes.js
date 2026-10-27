@@ -14,11 +14,13 @@ import {
   markInterviewCompleteForCase,
 } from "../../../controllers/clientDashboard/startCase/startCase.controller.js";
 
+import reviewedIntakeRoutes from "../../reviewedIntake.routes.js";
 import { voiceUpload, docUpload } from "./startCase.uploads.js";
 
 const router = express.Router();
 
 // /api/client/dashboard/start-case/...
+router.use("/:caseId/intake-v2", reviewedIntakeRoutes);
 router.get("/active", authMiddleware, getActiveStartCase);
 router.post("/draft", authMiddleware, createDraftCase);
 router.post("/ai/start", authMiddleware, startAiInterviewSession);

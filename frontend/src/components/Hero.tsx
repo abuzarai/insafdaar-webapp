@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Mic, UserCheck, ClipboardList, FileCheck, Scale } from "lucide-react";
-import { isLoggedIn } from "../utils/auth";
+import { VOICE_ENTRY_PATH } from "../utils/voiceEntry";
 import { useTranslation } from "react-i18next";
 
 export default function Hero() {
@@ -10,8 +10,7 @@ export default function Hero() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const goVoice = () =>
-    !isLoggedIn() ? nav("/login?next=/voice") : nav("/voice");
+  const goVoice = () => nav(VOICE_ENTRY_PATH);
 
   // 🟢 Multilingual Stages
   const stages = [

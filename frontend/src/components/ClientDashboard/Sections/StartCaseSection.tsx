@@ -4,7 +4,7 @@ import axios from "axios";
 import { API_BASE_URL } from "../../../config";
 import AuthedLink from "../../common/AuthedLink";
 import AuthedAudio from "../../common/AuthedAudio";
-import { VoiceInterviewPanel, InterviewResult } from "../../VoiceInterview";
+import ReviewedIntakePanel, { IntakePresentationStage } from "../../VoiceInterview/ReviewedIntakePanel";
 import {
   Mic,
   Send,
@@ -12,30 +12,16 @@ import {
   ShieldCheck,
   FileUp,
   Sparkles,
-  X,
   CheckCircle2,
-  Globe,
   Play,
   Pause,
   Timer,
   List,
   UploadCloud,
-  Radio,
   CircleStop,
   RefreshCw,
   AudioLines,
 } from "lucide-react";
-
-type LanguageOption = { label: string; value: string };
-const LANGUAGES: LanguageOption[] = [
-  { label: "English", value: "English" },
-  { label: "Urdu", value: "Urdu" },
-  { label: "Punjabi", value: "Punjabi" },
-  { label: "Pashto", value: "Pashto" },
-  { label: "Sindhi", value: "Sindhi" },
-  { label: "Balochi", value: "Balochi" },
-  { label: "Other", value: "Other" },
-];
 
 const STORAGE_KEY = "start_case_state_v2";
 
@@ -97,45 +83,6 @@ function fmtTime(totalSeconds: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function Modal({
-  title,
-  children,
-  onClose,
-  size = "lg",
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-  size?: "md" | "lg" | "stage";
-}) {
-  const maxW =
-    size === "stage" ? "max-w-6xl" : size === "lg" ? "max-w-lg" : "max-w-md";
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div
-        className={`relative w-full rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden ${maxW}`}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
-          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-          <button aria-label="Close"
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 transition"
-          ><X size={18} className="text-slate-700"  aria-hidden="true" /></button>
-        </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 /** waveform helpers */
 function rmsFromTimeDomain(data: Uint8Array) {
   let sum = 0;
@@ -150,17 +97,20 @@ function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
-export default function StartCaseSection() {
+export default function StartCaseSection({ requestedCaseId }: { requestedCaseId?: number } = {}) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [caseId, setCaseId] = useState<number | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
-  const [showLangModal, setShowLangModal] = useState(true);
+  // Restored identity keys the panel; a newly-created ID is owned inside the same entry.
+  const [entryCaseId, setEntryCaseId] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);
+  const entryAlive = useRef(false);
   const [description, setDescription] = useState("");
 
-  // AI Interview (handled by VoiceInterviewPanel)
-  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [reviewedCase, setReviewedCase] = useState(false);
+  const [intakeStage, setIntakeStage] = useState<IntakePresentationStage>("loading");
 
   // Voice Recording
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -179,14 +129,13 @@ export default function StartCaseSection() {
   const [voiceNotes, setVoiceNotes] = useState<any[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [matchingBusy, setMatchingBusy] = useState(false);
+  const [matchingError, setMatchingError] = useState<string | null>(null);
   const [matchingCandidates, setMatchingCandidates] = useState<MatchCandidate[]>([]);
   const [selectedAdvocateId, setSelectedAdvocateId] = useState<number | null>(null);
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [interviewSessionId, setInterviewSessionId] = useState<string>("");
   const [matchingCaseMeta, setMatchingCaseMeta] = useState<MatchingCaseMeta | null>(null);
   const [latestInterview, setLatestInterview] = useState<PersistedInterviewResult | null>(null);
-  const [interviewPanelVersion, setInterviewPanelVersion] = useState(0);
 
   // analyser
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -203,27 +152,22 @@ export default function StartCaseSection() {
   const minChars = 20;
   const maxChars = 1200;
 
-  const isAiMode = selectedLanguage === "English" || selectedLanguage === "Urdu";
+  const isAiMode = reviewedCase || !selectedLanguage || ["english", "urdu", "mixed"].includes(selectedLanguage.toLowerCase());
   const hasLang = !!selectedLanguage;
+  const showSupportingContent = !!caseId && (!isAiMode || ["ready", "review", "editing", "submitted"].includes(intakeStage));
+  const showMatching = !isAiMode || intakeStage === "submitted";
   const meterPct = clamp(level * 150, 0, 100);
 
   const persistLocal = (
-    next: Partial<{ caseId: number | null; selectedLanguage: string; description: string }>
+    next: Partial<{ caseId: number | null; selectedLanguage: string; description: string }>,
+    omitDescription = false
   ) => {
     try {
       const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...prev, ...next }));
+      const metadata = { ...prev, ...next };
+      if (reviewedCase || omitDescription) delete metadata.description;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(metadata));
     } catch { }
-  };
-
-  const restoreLocal = () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
   };
 
   const validation = useMemo(() => {
@@ -253,12 +197,13 @@ export default function StartCaseSection() {
     }
   };
 
-  const loadMatching = async (id?: number | null) => {
+  const loadMatching = async (id?: number | null, propagateFailure = false) => {
     const cid = id || caseId;
     if (!cid) return;
 
     try {
       setMatchingBusy(true);
+      setMatchingError(null);
       const res = await axios.get(
         `${API_BASE_URL}/api/client/dashboard/start-case/matching?caseId=${cid}`,
         { headers: authHeaders() }
@@ -277,9 +222,12 @@ export default function StartCaseSection() {
       setMatchingCandidates([]);
       setMatchingCaseMeta(null);
       setLatestInterview(null);
+      setMatchingError(e?.response?.data?.error || "Lawyers could not be loaded. Please retry.");
       if (e?.response?.data?.error) {
         setMsg(`${e.response.data.error}`);
       }
+      // Only the reviewed-submission adapter propagates failure to its retry UI.
+      if (propagateFailure) throw e;
     } finally {
       setMatchingBusy(false);
     }
@@ -307,78 +255,52 @@ export default function StartCaseSection() {
     }
   };
 
-  // ✅ ON LOAD: restore from backend active case, else localStorage
+  // Restoration is read-only; only an explicit consented Start can create a live draft.
   useEffect(() => {
+    let cancelled = false;
+    entryAlive.current = true;
     const boot = async () => {
       setBusy(true);
       try {
-        const active = await axios.get(
-          `${API_BASE_URL}/api/client/dashboard/start-case/active`,
-          { headers: authHeaders() }
-        );
-
+        const active = await axios.get(`${API_BASE_URL}/api/client/dashboard/start-case/active`, { headers: authHeaders(), ...(requestedCaseId ? { params: { caseId: requestedCaseId } } : {}) });
+        if (cancelled) return;
         const c = active.data?.case;
-
-        if (c?.id) {
-          setCaseId(c.id);
-          setSelectedLanguage(c.language || "");
-          setDescription(c.description || "");
-
-          persistLocal({
-            caseId: c.id,
-            selectedLanguage: c.language || "",
-            description: c.description || "",
-          });
-
-          await refreshLists(c.id);
-          await loadMatching(c.id);
-
-          // ✅ IMPORTANT FIX: do NOT show modal if language already saved
-          setShowLangModal(!c.language);
-
-          return;
+        if (requestedCaseId && c?.id !== requestedCaseId) throw new Error("Case selection did not match");
+        // Only an explicit server null means fresh entry. Browser metadata is never case authority.
+        if (c !== null && (!c || !Number.isSafeInteger(c.id) || c.id <= 0 ||
+          (c.language != null && typeof c.language !== "string") ||
+          (c.description != null && typeof c.description !== "string") ||
+          (c.intake_protocol != null && !["legacy", "live_v2"].includes(c.intake_protocol)))) {
+          throw new Error("Invalid active case response");
         }
-
-        // fallback local
-        const local = restoreLocal();
-        if (local?.caseId) {
-          setCaseId(local.caseId);
-          setSelectedLanguage(local.selectedLanguage || "");
-          setDescription(local.description || "");
-          setShowLangModal(!local.selectedLanguage);
-
-          // ✅ IMPORTANT FIX: load lists on fallback too
-          await refreshLists(local.caseId);
-          await loadMatching(local.caseId);
-        } else {
-          setShowLangModal(true);
+        if (c) {
+          const id = c.id;
+          const language = c.language || "";
+          const live = c.intake_protocol === "live_v2" || !language || ["english", "urdu", "mixed"].includes(language.toLowerCase());
+          setCaseId(id); setEntryCaseId(id);
+          setReviewedCase(c.intake_protocol === "live_v2");
+          setSelectedLanguage(language);
+          setDescription(live ? "" : c.description || "");
+          await refreshLists(id);
+          if (!cancelled && !live) await loadMatching(id);
         }
+        if (!cancelled) setRestored(true);
       } catch {
-        const local = restoreLocal();
-        if (local?.caseId) {
-          setCaseId(local.caseId);
-          setSelectedLanguage(local.selectedLanguage || "");
-          setDescription(local.description || "");
-          setShowLangModal(!local.selectedLanguage);
-          await refreshLists(local.caseId);
-          await loadMatching(local.caseId);
-        } else {
-          setShowLangModal(true);
-        }
+        if (!cancelled) setMsg("Saved case could not be checked. Reload before starting an interview. No call was started.");
       } finally {
-        setBusy(false);
+        if (!cancelled) setBusy(false);
       }
     };
-
-    boot();
+    void boot();
+    return () => { cancelled = true; entryAlive.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // local sync
+  // Live intake stores identifiers only, never extracted facts or Start intent.
   useEffect(() => {
-    persistLocal({ caseId, selectedLanguage, description });
+    if (restored && caseId) persistLocal({ caseId, selectedLanguage, description }, isAiMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caseId, selectedLanguage, description]);
+  }, [restored, caseId, selectedLanguage, description, isAiMode]);
 
   // timer
   useEffect(() => {
@@ -433,90 +355,27 @@ export default function StartCaseSection() {
     return id;
   };
 
-  const completeInterviewForCase = async (id: number, result?: InterviewResult) => {
-    const response = await axios.post(
-      `${API_BASE_URL}/api/client/dashboard/start-case/interview/complete`,
-      {
-        caseId: id,
-        legalDomain: result?.analysis?.legal_domain || null,
-      },
-      { headers: authHeaders() }
-    );
-    await loadMatching(id);
-    return response;
-  };
-
-  const startNewAiInterview = async () => {
-    if (!isAiMode) {
-      setMsg("AI interview is available only for English/Urdu.");
-      return;
+  const createLiveCase = async () => {
+    const res = await axios.post(`${API_BASE_URL}/api/client/dashboard/start-case/draft`, {
+      // The server creates empty routing metadata, never a default preferred language or narrative.
+      createOnly: true,
+    }, { headers: authHeaders() });
+    const c = res.data?.case;
+    if (!Number.isSafeInteger(c?.id) || c.id <= 0 || !["legacy", "live_v2"].includes(c.intake_protocol) || typeof c.status !== "string" || typeof res.data?.created !== "boolean") {
+      throw new Error("Invalid draft receipt");
     }
-
-    setBusy(true);
-    setMsg("");
-    try {
-      const id = caseId || (await ensureDraftCase());
-      if (!id) {
-        setMsg("Could not resolve case. Please refresh and try again.");
-        return;
+    if (entryAlive.current) {
+      setCaseId(c.id);
+      setSelectedLanguage(c.language || "");
+      setReviewedCase(c.intake_protocol === "live_v2");
+      // Resume a discovered voice-note draft without losing its saved description.
+      // Live intake facts remain in reviewed revisions, not browser draft storage.
+      if (!res.data.created && c.intake_protocol === "legacy" && c.language && !["english", "urdu", "mixed"].includes(c.language.toLowerCase())) {
+        setDescription(typeof c.description === "string" ? c.description : "");
       }
-
-      await axios.post(
-        `${API_BASE_URL}/api/client/dashboard/start-case/ai/start`,
-        { caseId: id, provider: "gcp", providerSessionId: null },
-        { headers: authHeaders() }
-      );
-
-      setInterviewSessionId("");
-      setInterviewStarted(true);
-      setInterviewPanelVersion((v) => v + 1);
-      setMsg("New AI interview session is ready.");
-    } catch (e: any) {
-      setMsg(e?.response?.data?.error || "Could not start a new interview session.");
-    } finally {
-      setBusy(false);
+      void refreshLists(c.id);
     }
-  };
-
-  const onConfirmLanguage = async () => {
-    setMsg("");
-    if (!selectedLanguage) return setMsg("Please select a language first.");
-
-    try {
-      setBusy(true);
-      const id = await saveDraft({
-        description: description.trim() || "Draft created for interview/voice recording.",
-        language: selectedLanguage,
-      });
-
-      if (!id) {
-        setMsg("Could not create case draft. Please try again.");
-        return;
-      }
-
-      await refreshLists(id);
-      await loadMatching(id);
-
-      setShowLangModal(false);
-
-      if (selectedLanguage === "English" || selectedLanguage === "Urdu") {
-        await axios.post(
-          `${API_BASE_URL}/api/client/dashboard/start-case/ai/start`,
-          { caseId: id, provider: "gcp", providerSessionId: null },
-          { headers: authHeaders() }
-        );
-        setInterviewSessionId("");
-        setInterviewStarted(true);
-        setMsg("AI interview ready");
-        return;
-      }
-
-      setMsg("Voice note ready → Record → Preview → Upload");
-    } catch (e: any) {
-      setMsg(e?.response?.data?.error || "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
+    return { caseId: c.id, created: res.data.created === true && c.intake_protocol === "legacy" && c.status === "DRAFT" && c.language === "mixed" };
   };
 
   const saveDescription = async () => {
@@ -537,7 +396,6 @@ export default function StartCaseSection() {
     }
   };
 
-  // sendInterviewMessage removed — now handled by VoiceInterviewPanel
 
   const startAnalyser = (stream: MediaStream) => {
     try {
@@ -742,31 +600,12 @@ export default function StartCaseSection() {
 
       setMsg(`${docType.replace("_", " ")} uploaded`);
       await refreshLists(id);
-      await loadMatching(id);
+      if (!isAiMode || intakeStage === "submitted") await loadMatching(id);
     } catch (e: any) {
       setMsg(e?.response?.data?.error || "Upload failed.");
     } finally {
       setBusy(false);
     }
-  };
-
-  const resetLocalSession = async () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch { }
-
-    setCaseId(null);
-    setSelectedLanguage("");
-    setDescription("");
-    setDocuments([]);
-    setVoiceNotes([]);
-    setRecordedBlob(null);
-
-    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
-    setAudioPreviewUrl("");
-
-    setShowLangModal(true);
-    setMsg("Reset done. Please select language again.");
   };
 
   return (
@@ -779,137 +618,23 @@ export default function StartCaseSection() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Start a New Case</h1>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{caseId ? "Continue your case" : "Start a case"}</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Choose language → AI conversation (English/Urdu) or Voice note (others)
+            {isAiMode ? "Tell your story, review the details, then choose your next step." : "Record and upload a voice note for your saved case."}
           </p>
           {msg && <p className="mt-2 text-sm text-amber-700">{msg}</p>}
           {caseId && <p className="mt-1 text-xs text-slate-500">Case ID: {caseId}</p>}
         </div>
-
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 shadow-sm">
-            <ShieldCheck size={14} className="text-emerald-600" />
-            Your data is protected
-          </div>
-
-          <button
-            type="button"
-            onClick={resetLocalSession}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50 transition"
-            title="Reset (for testing)"
-          >
-            <RefreshCw size={14} />
-            Reset
-          </button>
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 shadow-sm">
+          <ShieldCheck size={14} className="text-emerald-600" />
+          Your data is protected
         </div>
       </div>
 
-      {/* Language + Documents */}
-      <div className="grid md:grid-cols-2 gap-5">
-        <button
-          type="button"
-          onClick={() => setShowLangModal(true)}
-          className="text-left bg-white rounded-2xl p-6 shadow hover:shadow-md transition border border-slate-200"
-        >
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700 border border-blue-200">
-            <Globe size={14} /> Language
-          </div>
-          <h2 className="mt-4 text-xl font-bold text-slate-900">Interview / Voice</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            English/Urdu → AI conversation<br />Other languages → Voice note
-          </p>
-          <div className="mt-4 text-sm font-semibold text-[#004aad]">
-            Current: {selectedLanguage || "Not selected"}
-          </div>
-        </button>
-
-        <div className="bg-white rounded-2xl p-6 shadow border border-slate-200">
-          <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-700 border border-amber-200">
-            <UploadCloud size={14} /> Upload
-          </div>
-          <h2 className="mt-4 text-xl font-bold text-slate-900">Supporting Documents</h2>
-          <p className="mt-2 text-sm text-slate-600">Add documents one by one</p>
-
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {(["CNIC_FRONT", "CNIC_BACK", "ADDRESS_PROOF", "EVIDENCE", "OTHER"] as const).map((t) => (
-              <label
-                key={t}
-                className="border rounded-xl p-4 cursor-pointer hover:bg-slate-50 transition text-sm flex items-center justify-between"
-              >
-                <span className="font-medium">{t.replace("_", " ")}</span>
-                <FileUp size={18} className="text-[#004aad]" />
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".png,.jpg,.jpeg,.pdf"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) uploadDocument(file, t);
-                  }}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* AI Voice Interview */}
-      {hasLang && isAiMode && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">AI Interview</div>
-              <div className="text-xs text-slate-500">
-                You can start a fresh interview anytime. Latest completed summary stays visible below.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={startNewAiInterview}
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              title="Start a new AI interview"
-            >
-              <RefreshCw size={14} /> Start New Interview
-            </button>
-          </div>
-        <VoiceInterviewPanel
-          key={`voice-panel-${caseId || "new"}-${interviewPanelVersion}`}
-          caseId={caseId}
-          language={selectedLanguage as "English" | "Urdu"}
-          onSessionCreated={(sessionId: string) => {
-            setInterviewSessionId(sessionId || "");
-          }}
-          onComplete={(result: InterviewResult) => {
-            setMsg("Interview complete! Analysis saved.");
-            console.log("Interview result:", result);
-            const finalize = async () => {
-              const id = caseId || (await ensureDraftCase());
-              if (!id) {
-                setMsg("Interview finished but case could not be resolved. Please refresh and try again.");
-                return;
-              }
-
-              await completeInterviewForCase(id, result);
-            };
-
-            finalize().catch((e: any) => {
-              const details = e?.response?.data?.error || e?.message || "Failed to finalize interview.";
-              setMsg(`Interview completed but final save failed: ${details}`);
-            });
-          }}
-          onError={(error: string) => {
-            if (interviewSessionId) {
-              setMsg(
-                `Interview ended with issue: ${error}. Session ${interviewSessionId} may still be processing, please refresh in a few seconds.`
-              );
-              return;
-            }
-            setMsg(`Interview error: ${error}`);
-          }}
-        />
-        </div>
+      {/* Model callbacks never complete or submit the reviewed case. */}
+      {restored && isAiMode && (
+        <ReviewedIntakePanel caseId={entryCaseId} createCase={createLiveCase} onManaged={setReviewedCase} onPresentationStage={setIntakeStage}
+          onSubmitted={() => loadMatching(caseId, true)} />
       )}
 
       {/* Voice UI */}
@@ -1069,8 +794,8 @@ export default function StartCaseSection() {
         </div>
       )}
 
-      {/* Description */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      {/* Reviewed cases may only change facts through immutable revisions. */}
+      {!isAiMode && <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
           <h3 className="text-sm font-semibold text-slate-900">Optional: Write a short description</h3>
           <p className="text-xs text-slate-600 mt-1">
@@ -1109,7 +834,40 @@ export default function StartCaseSection() {
             Save description
           </button>
         </div>
-      </div>
+      </div>}
+
+      {showSupportingContent && <details className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" open={isAiMode ? undefined : true}>
+        <summary className="cursor-pointer font-semibold text-slate-700">{isAiMode ? "Supporting documents & history (optional)" : "Documents & history"}</summary>
+        <div className="mt-4 space-y-5">
+      {/* Optional supporting documents */}
+        <div className="bg-white rounded-2xl p-6 shadow border border-slate-200">
+          <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-700 border border-amber-200">
+            <UploadCloud size={14} /> Upload
+          </div>
+          <h2 className="mt-4 text-xl font-bold text-slate-900">Supporting Documents</h2>
+          <p className="mt-2 text-sm text-slate-600">Add documents one by one</p>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            {(["CNIC_FRONT", "CNIC_BACK", "ADDRESS_PROOF", "EVIDENCE", "OTHER"] as const).map((t) => (
+              <label
+                key={t}
+                className="border rounded-xl p-4 cursor-pointer hover:bg-slate-50 focus-within:ring-2 focus-within:ring-[#004aad] transition text-sm flex items-center justify-between"
+              >
+                <span className="font-medium">{t.replace("_", " ")}</span>
+                <FileUp size={18} className="text-[#004aad]" />
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept=".png,.jpg,.jpeg,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadDocument(file, t);
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
 
       {/* Uploaded content */}
       {caseId && (
@@ -1177,7 +935,10 @@ export default function StartCaseSection() {
         </div>
       )}
 
-      {caseId && (
+        </div>
+      </details>}
+
+      {caseId && showMatching && (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1198,9 +959,10 @@ export default function StartCaseSection() {
             {matchingCaseMeta?.case_display_label ? (
               <div className="mb-3 text-xs text-slate-500">{matchingCaseMeta.case_display_label}</div>
             ) : null}
-            {latestInterview?.summary ? (
+            {!isAiMode && latestInterview?.summary ? (
               <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-                <div className="font-semibold">Latest AI Interview Summary</div>
+                <div className="font-semibold">{latestInterview?.meta?.completionSource === "client_reviewed_revision" ? "Submitted intake snapshot" : "Latest AI Interview Summary"}</div>
+                {latestInterview?.meta?.completionSource === "client_reviewed_revision" && <p className="text-xs">Client-reviewed facts; legal labels, ADR, urgency and titles remain suggestions, not legal certification. Audio completeness is unproven.</p>}
                 {latestInterview?.meta?.completedAt ? (
                   <div className="mt-1 text-emerald-800/80">
                     Completed {new Date(latestInterview.meta.completedAt).toLocaleString()}
@@ -1225,9 +987,13 @@ export default function StartCaseSection() {
             ) : null}
             {matchingBusy ? (
               <div className="text-sm text-slate-500">Loading shortlist...</div>
+            ) : matchingError ? (
+              <div role="alert" className="text-sm text-red-700">{matchingError}</div>
+            ) : isAiMode && !matchingCaseMeta ? (
+              <div className="text-sm text-slate-600">Your case is submitted. Choose Find lawyers or Refresh to load your shortlist.</div>
             ) : matchingCandidates.length === 0 ? (
               <div className="text-sm text-slate-600">
-                No shortlisted advocates yet. Complete interview and refresh in a few seconds.
+                No shortlisted advocates are available yet. You can refresh to check again.
               </div>
             ) : (
               <div className="space-y-3">
@@ -1308,43 +1074,6 @@ export default function StartCaseSection() {
         </div>
       )}
 
-      {/* Language Modal */}
-      {showLangModal && (
-        <Modal title="Select Language" onClose={() => setShowLangModal(false)}>
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              English/Urdu → AI Interview UI. Other languages → Voice note UI.
-            </p>
-
-            <div className="grid grid-cols-1 gap-2">
-              {LANGUAGES.map((l) => (
-                <button
-                  key={l.value}
-                  className={`w-full text-left px-4 py-3 rounded-xl border transition ${selectedLanguage === l.value
-                      ? "border-[#004aad] bg-[#004aad]/10 text-[#004aad] font-semibold"
-                      : "border-slate-200 hover:bg-slate-50"
-                    }`}
-                  onClick={() => setSelectedLanguage(l.value)}
-                  type="button"
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={onConfirmLanguage}
-              disabled={busy}
-              className="w-full rounded-xl bg-[#004aad] text-white py-2.5 text-sm font-semibold hover:bg-[#003b82] disabled:opacity-60"
-            >
-              {busy ? "Starting..." : "Continue"}
-            </button>
-
-            <div className="text-xs text-slate-500">If something fails: logout and login again.</div>
-          </div>
-        </Modal>
-      )}
     </section>
   );
 }

@@ -1,13 +1,16 @@
+import SavedTranscriptHistory from "../../VoiceInterview/TranscriptView";
+import ReviewedCaseSummary from "./ReviewedCaseSummary";
+import { caseNextStep } from "./caseNextStep";
+import ContractSection from "../Sections/ContractSection";
+import BillingSection from "../Sections/BillingSection";
 import { formatStatus } from "../../common/formatStatus";
 import { safeExternalHref } from "../../../utils/url";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import AuthedLink from "../../common/AuthedLink";
 import {
   ArrowLeft,
-  BadgeCheck,
   CreditCard,
-  FileText,
   FolderOpen,
   Lock,
   RefreshCw,
@@ -23,6 +26,8 @@ type Props = {
   caseId: number;
   caseRef?: string;
   onBack?: () => void;
+  onContinue?: () => void;
+  initialTab?: string;
 };
 
 type AccessPayment = {
@@ -156,7 +161,7 @@ type CaseDetailsPayload = {
   }>;
 };
 
-type TabKey = "Overview" | "Timeline" | "Meetings" | "Contract" | "Payments" | "Documents";
+type TabKey = "Overview" | "Intake & Documents" | "Schedule" | "Agreement & Payments" | "History";
 
 function authHeaders() {
   const token = localStorage.getItem("token");
@@ -193,8 +198,16 @@ function paymentTone(status: string) {
   return "text-slate-700 bg-slate-50 border-slate-200";
 }
 
-export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
-  const [tab, setTab] = useState<TabKey>("Overview");
+export default function CaseDetailsSection(props: Props) {
+  return <CaseWorkspace key={`${props.caseId}:${localStorage.getItem("token")}:${props.initialTab || ""}`} {...props} />;
+}
+
+function CaseWorkspace({ caseId, caseRef, onBack, onContinue, initialTab }: Props) {
+  const alive = useRef(true);
+  const token = useRef(localStorage.getItem("token")).current;
+  const current = () => alive.current && token === localStorage.getItem("token");
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const [tab, setTab] = useState<TabKey>(["Overview", "Intake & Documents", "Schedule", "Agreement & Payments", "History"].includes(initialTab || "") ? initialTab as TabKey : "Overview");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState("");
@@ -207,6 +220,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
   const [docUploading, setDocUploading] = useState(false);
 
   const loadAll = async () => {
+    if (!current()) return;
     try {
       setLoading(true);
       setMsg("");
@@ -228,22 +242,27 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
           accessPayment = (e?.response?.data?.payment || null) as AccessPayment | null;
           setLockedReason(
             e?.response?.data?.message ||
-              "Payment is not verified yet. Please upload payment proof in Billing and wait for admin verification."
+              "Payment is not verified yet. Use this case’s Agreement & Payments to upload proof and wait for admin verification."
           );
         } else {
           throw e;
         }
       }
 
+      if (!current()) return;
       const detailsRes = await axios.get(`${API_BASE_URL}/api/client/dashboard/case-details/details`, {
         headers: authHeaders(),
         params: { caseId },
       });
 
-      setDetails((detailsRes.data || null) as CaseDetailsPayload | null);
+      if (!current()) return;
+      const payload = detailsRes.data as CaseDetailsPayload;
+      if (payload?.case?.id !== caseId || payload.vouchers.some(v => v.case_id !== caseId) || payload.meetings.some(m => m.case_id !== caseId) || (payload.contract && payload.contract.caseId !== caseId)) throw new Error("Case identity mismatch. Records unavailable.");
+      setDetails(payload);
       setUnlocked(accessUnlocked || Boolean(detailsRes.data?.unlocked));
       setPaymentGate(accessPayment || (detailsRes.data?.payment || null));
     } catch (e: any) {
+      if (!current()) return;
       setMsg(e?.response?.data?.error || e?.message || "Failed to load case details");
       setDetails(null);
       setUnlocked(false);
@@ -267,6 +286,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
   };
 
   const uploadCaseDocument = async (file: File) => {
+    if (!current() || !unlocked || details?.case.id !== caseId) return;
     try {
       setDocUploading(true);
       setMsg("");
@@ -281,7 +301,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
       });
 
       setDocUploadNote("");
-      await loadAll();
+      if (current()) await loadAll();
     } catch (e: any) {
       setMsg(e?.response?.data?.error || e?.message || "Failed to upload document");
     } finally {
@@ -290,9 +310,10 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
   };
 
   const caseData = details?.case;
+  const unfinished = ["DRAFT", "INTAKE_STARTED"].includes(caseData?.status || "");
+  const canContinue = unfinished || caseData?.status === "MATCHING_REVIEW";
   const vouchers = details?.vouchers || [];
   const meetings = details?.meetings || [];
-  const contract = details?.contract || null;
   const timeline = details?.timeline || [];
   const docs = details?.documents || [];
   const voice = details?.voiceNotes || [];
@@ -300,7 +321,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
   const upcomingMeeting = (() => {
     const now = Date.now();
     const sorted = [...meetings].sort((a, b) => new Date(a.start_at || a.created_at).getTime() - new Date(b.start_at || b.created_at).getTime());
-    return sorted.find((m) => new Date(m.start_at || m.created_at).getTime() >= now) || sorted[0] || null;
+    return sorted.find((m) => !/CANCEL|REJECT/i.test(m.status) && Boolean(m.start_at) && new Date(m.start_at || "").getTime() >= now) || null;
   })();
 
   return (
@@ -311,15 +332,16 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
             {onBack ? (
               <button
                 onClick={onBack}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
+                className="inline-flex min-h-[44px] items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
               >
                 <ArrowLeft size={16} /> Back
               </button>
             ) : null}
-            <h1 className="text-3xl font-bold text-[#004aad] border-b pb-2">Case Details</h1>
+            <h1 className="text-3xl font-bold text-[#004aad] border-b pb-2">{caseData?.title || "Case details"}</h1>
           </div>
+          {caseData ? <p className="text-sm">Case status: {formatStatus(caseData.status)} • Advocate: {caseData.advocate.assigned ? caseData.advocate.name || "Assigned" : "Not assigned"}</p> : null}
           <p className="text-sm text-slate-600 mt-2">
-            {caseData?.title || "Case"} • Case ID <span className="font-semibold text-slate-900">{caseRef || caseData?.id || caseId}</span>
+            Case ID <span className="font-semibold text-slate-900">{caseRef || caseData?.id || caseId}</span>
           </p>
         </div>
 
@@ -327,7 +349,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
           type="button"
           onClick={refresh}
           disabled={refreshing || loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
+          className="inline-flex min-h-[44px] items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
         >
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           {refreshing ? "Refreshing..." : "Refresh"}
@@ -340,7 +362,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading case details...</div>
       ) : null}
 
-      {!loading && paymentGate ? (
+      {!loading && paymentGate && tab === "Agreement & Payments" ? (
         <div className="grid md:grid-cols-4 gap-3">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="text-xs text-slate-500">Payment Status</div>
@@ -363,7 +385,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
         </div>
       ) : null}
 
-      {!loading && !unlocked ? (
+      {!loading && details && !unlocked && !unfinished ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-xl border border-amber-200 bg-white flex items-center justify-center">
@@ -372,7 +394,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
             <div className="flex-1">
               <div className="font-bold text-amber-900">Case Workspace Locked</div>
               <div className="text-sm text-amber-800 mt-1">
-                {lockedReason || "Payment verification is pending. Upload proof in Billing and wait for admin verification."}
+                {lockedReason || "Payment verification is pending. Use this case’s Agreement & Payments for available actions."}
               </div>
               {paymentGate?.manualOverrideStatus ? (
                 <div className="mt-2 text-xs text-amber-800">
@@ -381,28 +403,29 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
               ) : null}
               <button
                 type="button"
-                onClick={() => (window.location.href = "/client-dashboard?section=Billing")}
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white text-sm font-semibold"
+                onClick={() => setTab("Agreement & Payments")}
+                className="mt-3 inline-flex min-h-[44px] items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white text-sm font-semibold"
               >
-                <CreditCard size={16} /> Go to Billing
+                <CreditCard size={16} /> Open this case’s Agreement & Payments
               </button>
             </div>
           </div>
         </div>
       ) : null}
 
-      {!loading && unlocked ? (
+      {!loading && details ? (
         <>
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 flex items-center gap-2">
-            <BadgeCheck size={16} /> Payment verified. Full case workspace unlocked.
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+            <p className="font-semibold">Next step</p><p className="text-sm text-slate-700">{caseNextStep(caseData?.status)}</p>
+            {canContinue && onContinue && <button type="button" onClick={onContinue} className="min-h-[44px] rounded-xl bg-[#004aad] px-4 py-2 text-white font-semibold">{unfinished ? "Continue case" : "View lawyer options"}</button>}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {(["Overview", "Timeline", "Meetings", "Contract", "Payments", "Documents"] as TabKey[]).map((t) => (
+            {(["Overview", "Intake & Documents", "Schedule", "Agreement & Payments", "History"] as TabKey[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border ${
+                className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-semibold border ${
                   tab === t
                     ? "bg-[#004aad] text-white border-transparent"
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
@@ -413,19 +436,20 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
             ))}
           </div>
 
-          {tab === "Overview" ? (
+          {(tab === "Overview" || tab === "Intake & Documents") && <ReviewedCaseSummary key={`summary:${caseId}:${token}`} caseId={caseId} />}
+          {unlocked && tab === "Overview" ? (
             <div className="grid lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
-                <div className="text-lg font-bold text-slate-900">Case Summary</div>
-                <div className="text-sm text-slate-700">{caseData?.description || "No case summary available yet."}</div>
+                <div className="text-lg font-bold text-slate-900">Case updates</div>
+                <div className="text-sm">Recent updates: {[...timeline].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).map(e => `${formatStatus(e.to_status)} (${dt(e.created_at)})`).join("; ") || "None recorded"}</div>
                 <div className="grid md:grid-cols-2 gap-3 pt-2 text-sm">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-xs text-slate-500">Lifecycle Status</div>
+                    <div className="text-xs text-slate-500">Case status</div>
                     <div className="font-semibold text-slate-900 mt-1">{formatStatus(caseData?.status) || "—"}</div>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Next Meeting</div>
-                    <div className="font-semibold text-slate-900 mt-1">{upcomingMeeting ? d(upcomingMeeting.start_at) : "No meeting scheduled"}</div>
+                    <div className="font-semibold text-slate-900 mt-1">{upcomingMeeting ? `${dt(upcomingMeeting.start_at)} • ${formatStatus(upcomingMeeting.status)}` : "No upcoming consultation recorded"}</div>
                   </div>
                 </div>
               </div>
@@ -437,8 +461,8 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                 {caseData?.advocate?.assigned ? (
                   <div className="text-sm text-slate-700 space-y-1">
                     <div className="font-semibold text-slate-900">{caseData.advocate.name || "Assigned"}</div>
-                    <div>{caseData.advocate.email || "—"}</div>
-                    <div>{caseData.advocate.phone || "—"}</div>
+                    {caseData.advocate.email && <a className="block min-h-[44px] py-2 text-[#004aad] underline break-all" href={`mailto:${encodeURIComponent(caseData.advocate.email)}`}>Email your lawyer</a>}
+                    {caseData.advocate.phone && <a className="block min-h-[44px] py-2 text-[#004aad] underline" href={`tel:${encodeURIComponent(caseData.advocate.phone)}`}>Call your lawyer</a>}
                   </div>
                 ) : (
                   <div className="text-sm text-slate-600">No advocate assigned yet.</div>
@@ -447,7 +471,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
             </div>
           ) : null}
 
-          {tab === "Timeline" ? (
+          {unlocked && tab === "History" ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="text-lg font-bold text-slate-900 mb-3">Case Timeline</div>
               <div className="space-y-2">
@@ -466,9 +490,10 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
             </div>
           ) : null}
 
-          {tab === "Meetings" ? (
+          {unlocked && tab === "Schedule" ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <div className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><Video size={18} /> Meetings</div>
+              <div className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><Video size={18} /> Consultation meetings</div>
+              <p className="text-sm text-slate-600 mb-3">Court hearings: hearing records are not available here. Consultation meetings below are not court hearings.</p>
               <div className="space-y-2">
                 {meetings.length === 0 ? (
                   <div className="text-sm text-slate-600">No meetings yet.</div>
@@ -477,7 +502,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                     <div key={m.id} className="rounded-xl border border-slate-200 p-3">
                       <div className="text-xs text-slate-500">{formatStatus(m.status)}</div>
                       <div className="text-sm font-semibold text-slate-900 mt-1">{dt(m.start_at)} {m.end_at ? `- ${dt(m.end_at)}` : ""}</div>
-                      {m.google_meet_link ? (
+                      {m.google_meet_link && m.approved_at && !/CANCEL|REJECT/i.test(m.status) ? (
                         <a href={safeExternalHref(m.google_meet_link)} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#004aad] mt-1 inline-block">
                           Join/Copy Meet Link
                         </a>
@@ -489,97 +514,26 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
             </div>
           ) : null}
 
-          {tab === "Contract" ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
-              <div className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText size={18} /> Contract</div>
-              {!contract ? (
-                <div className="text-sm text-slate-600">No contract available yet.</div>
-              ) : (
-                <>
-                  <div className="text-sm text-slate-700">Status: <span className="font-semibold text-slate-900">{formatStatus(contract.status)}</span> • v{contract.versionNo}</div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap max-h-[260px] overflow-auto">
-                    {contract.contractText}
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <div className="font-semibold text-slate-900">Signatures</div>
-                      {contract.signatures.length === 0 ? (
-                        <div className="text-slate-600 mt-1">No signatures yet.</div>
-                      ) : (
-                        contract.signatures.map((s) => (
-                          <div key={s.id} className="text-xs text-slate-700 mt-1">
-                            {s.signer_role}: {s.typed_full_name} • {dt(s.signed_at)}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <div className="font-semibold text-slate-900">Attachments</div>
-                      {contract.attachments.length === 0 ? (
-                        <div className="text-slate-600 mt-1">No attachments.</div>
-                      ) : (
-                        contract.attachments.map((a) => (
-                          <AuthedLink key={a.id} url={`/uploads/contracts/${a.file_path}`} className="block text-xs font-semibold text-[#004aad] mt-1">
-                            {a.file_name}
-                          </AuthedLink>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
+          {tab === "Agreement & Payments" ? (
+            <div className="space-y-5">
+              <ContractSection key={`contract:${caseId}:${token}`} caseId={caseId} />
+              <BillingSection key={`billing:${caseId}:${token}`} caseId={caseId} caseVouchers={vouchers} />
             </div>
           ) : null}
+          {!unlocked && !unfinished && tab !== "Agreement & Payments" ? <p>These records require payment verification. Open Agreement &amp; Payments for this case’s available actions.</p> : null}
 
-          {tab === "Payments" ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <div className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><CreditCard size={18} /> Payments</div>
-              <div className="space-y-2">
-                {vouchers.length === 0 ? (
-                  <div className="text-sm text-slate-600">No vouchers issued for this case yet.</div>
-                ) : (
-                  vouchers.map((v) => (
-                    <div key={v.id} className="rounded-xl border border-slate-200 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-slate-900">#{v.id} {v.title}</div>
-                        <span className="text-xs px-2 py-1 rounded-full border border-slate-200 bg-slate-50">{formatStatus(v.status)}</span>
-                      </div>
-                      <div className="text-xs text-slate-600 mt-1">
-                        Amount: {money(v.amount)} • Due: {d(v.due_date)}
-                      </div>
-                      {v.rejection_note ? (
-                        <div className="text-xs text-rose-700 mt-1">Reason: {v.rejection_note}</div>
-                      ) : null}
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        {v.voucher_pdf_url ? (
-                          <AuthedLink url={v.voucher_pdf_url} className="text-xs font-semibold text-[#004aad]">
-                            Open Voucher
-                          </AuthedLink>
-                        ) : null}
-                        {v.latest_proof_file_url ? (
-                          <AuthedLink url={v.latest_proof_file_url} className="text-xs font-semibold text-slate-700">
-                            Open Uploaded Proof
-                          </AuthedLink>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          {tab === "Documents" ? (
+          {tab === "Intake & Documents" ? <SavedTranscriptHistory key={`transcripts:${caseId}:${token}`} caseId={caseId} /> : null}
+          {unlocked && tab === "Intake & Documents" ? (
             <div className="grid lg:grid-cols-2 gap-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><FolderOpen size={18} /> Case Documents</div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 space-y-2">
                   <div className="text-xs text-slate-500">Upload supporting document for this case</div>
                   <div className="grid md:grid-cols-2 gap-2">
-                    <select
+                    <select aria-label="Document type"
                       value={docUploadType}
                       onChange={(e) => setDocUploadType(e.target.value)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      className="min-h-[44px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                       disabled={docUploading}
                     >
                       <option value="CNIC_FRONT">CNIC Front</option>
@@ -588,12 +542,12 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                       <option value="EVIDENCE">Evidence</option>
                       <option value="OTHER">Other</option>
                     </select>
-                    <label className={`inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold ${docUploading ? "opacity-60" : "cursor-pointer hover:bg-slate-50"}`}>
+                    <label className={`inline-flex min-h-[44px] items-center justify-center gap-2 focus-within:ring-2 focus-within:ring-blue-600 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold ${docUploading ? "opacity-60" : "cursor-pointer hover:bg-slate-50"}`}>
                       <Upload size={15} />
                       {docUploading ? "Uploading..." : "Upload File"}
                       <input
                         type="file"
-                        className="hidden"
+                        className="sr-only" aria-label="Upload File"
                         accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx"
                         disabled={docUploading}
                         onChange={(e) => {
@@ -604,7 +558,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                       />
                     </label>
                   </div>
-                  <textarea
+                  <textarea aria-label="Document note (optional)"
                     value={docUploadNote}
                     onChange={(e) => setDocUploadNote(e.target.value.slice(0, 1000))}
                     rows={2}
@@ -628,11 +582,11 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <div className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><ListChecks size={18} /> Interview / Voice Notes</div>
+              {(details?.intake || voice.length > 0) && <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><ListChecks size={18} /> Earlier interview records</div>
                 {details?.intake ? (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 space-y-2">
-                    <div className="text-xs text-slate-500">AI Interview</div>
+                    <div className="text-xs text-slate-500">Legacy intake analysis — not a confirmed reviewed snapshot</div>
                     <div className="text-sm text-slate-700 mt-1">
                       Domain: <span className="font-semibold text-slate-900">{details.intake.domain || "—"}</span> • Complexity: <span className="font-semibold text-slate-900">{details.intake.complexity || "—"}</span>
                     </div>
@@ -662,7 +616,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                   </div>
                 ) : (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 text-sm text-slate-600">
-                    No AI interview found for this case yet.
+                    No earlier interview record is available.
                   </div>
                 )}
 
@@ -683,7 +637,7 @@ export default function CaseDetailsSection({ caseId, caseRef, onBack }: Props) {
                     ))
                   )}
                 </div>
-              </div>
+              </div>}
             </div>
           ) : null}
         </>

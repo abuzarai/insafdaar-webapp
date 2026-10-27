@@ -431,7 +431,8 @@ export default function AssignmentQueuePanel() {
             <div className="space-y-2 max-h-[420px] overflow-auto pr-1">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="text-sm font-bold text-slate-900">AI Interview Summary</div>
+                  <div className="text-sm font-bold text-slate-900">{interview?.meta?.completionSource === "client_reviewed_revision" ? "Submitted intake snapshot" : "AI Interview Summary"}</div>
+                  {interview?.meta?.completionSource === "client_reviewed_revision" && <p className="text-xs text-amber-800">Client-reviewed facts; legal labels, ADR, urgency and title suggestions are not legal certification. Audio completeness is unproven.</p>}
                   {interview?.meta?.completedAt ? (
                     <div className="text-xs text-slate-500">
                       Completed {new Date(interview.meta.completedAt).toLocaleString()}

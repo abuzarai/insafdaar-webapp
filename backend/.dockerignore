@@ -3,7 +3,7 @@ npm-debug.log
 yarn-error.log
 .git
 .gitignore
-.env
+.env*
 Dockerfile
 docker-compose.yml
 uploads

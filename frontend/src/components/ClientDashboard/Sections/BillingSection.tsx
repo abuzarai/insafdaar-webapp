@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import AuthedLink from "../../common/AuthedLink";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
 import {
@@ -38,6 +39,7 @@ type VoucherRow = {
   id: number;
   title: string;
   description: string | null;
+  rejection_note?: string | null;
   amount: number;
   status: VoucherStatus;
   due_date: string | null;
@@ -268,7 +270,18 @@ function VoucherCard({
   );
 }
 
-export default function BillingSection() {
+type BillingProps = { caseId?: number; caseVouchers?: Array<Omit<VoucherRow, "status"> & { case_id: number; status: string }> };
+
+export default function BillingSection(props: BillingProps = {}) {
+  return <BillingView key={`${props.caseId}:${localStorage.getItem("token")}`} {...props} />;
+}
+
+function BillingView({ caseId, caseVouchers }: BillingProps) {
+  const alive = useRef(true);
+  const request = useRef(0);
+  const token = useRef(localStorage.getItem("token")).current;
+  const current = () => alive.current && token === localStorage.getItem("token");
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [msg, setMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
@@ -284,14 +297,16 @@ export default function BillingSection() {
   const [mobileTab, setMobileTab] = useState<"LIST" | "DETAILS">("LIST");
 
   const fetchVouchers = async () => {
+    if (!current()) return;
     try {
       setLoading(true);
       setMsg("");
 
-      const res = await axios.get(
+      const res = caseId ? { data: { vouchers: (caseVouchers || []).filter(v => v.case_id === caseId) } } : await axios.get(
         `${API_BASE_URL}/api/client/dashboard/billing/vouchers`,
         { headers: authHeaders() }
       );
+      if (!current()) return;
 
       // backend likely returns rows from client_billing
       const rows: VoucherRow[] = (res.data?.vouchers || []).map((r: any) => {
@@ -301,6 +316,7 @@ export default function BillingSection() {
           id: Number(r.id),
           title: r.title,
           description: r.description ?? null,
+          rejection_note: r.rejection_note ?? null,
           amount: Number(r.amount ?? 0),
           status: normalizedStatus,
           due_date: r.due_date ?? null,
@@ -327,6 +343,10 @@ export default function BillingSection() {
   };
 
   const fetchDetails = async (billingId: number) => {
+    if (!current()) return;
+    const sequence = ++request.current;
+    setActive(null);
+    if (caseId && !caseVouchers?.some(v => v.id === billingId && v.case_id === caseId)) return;
     try {
       setMsg("");
 
@@ -335,7 +355,9 @@ export default function BillingSection() {
         { headers: authHeaders() }
       );
 
+      if (!current() || sequence !== request.current) return;
       const v: any = res.data?.voucher;
+      if (caseId && (v?.case_id !== caseId || v?.id !== billingId)) throw new Error("Voucher case identity mismatch");
       if (!v) {
         setActive(null);
         return;
@@ -356,6 +378,7 @@ export default function BillingSection() {
         id: Number(v.id),
         amount: Number(v.amount ?? 0),
         status: derivedStatus,
+        rejection_note: v.rejection_note ?? (caseId ? caseVouchers?.find(row => row.id === billingId && row.case_id === caseId)?.rejection_note : null) ?? null,
 
         voucher_pdf_url: v.voucher_pdf_url ?? null,
         voucher_file_url: v.voucher_file_url ?? null,
@@ -373,8 +396,12 @@ export default function BillingSection() {
       };
 
       setActive(details);
+      if (caseId) {
+        setVouchers(rows => rows.map(row => row.id === billingId ? { ...row, status: derivedStatus } : row));
+      }
     } catch (e: any) {
-      setMsg(e?.response?.data?.error || "Failed to load voucher details.");
+      if (!current() || sequence !== request.current) return;
+      setMsg(e?.response?.data?.error || e?.message || "Failed to load voucher details.");
       setActive(null);
     }
   };
@@ -392,7 +419,7 @@ export default function BillingSection() {
   const rowsForTable = useMemo(() => vouchers, [vouchers]);
 
   const uploadProof = async (file: File) => {
-    if (!active) return;
+    if (!current() || !active || active.id !== selectedVoucherId || (caseId && !caseVouchers?.some(v => v.id === active.id && v.case_id === caseId))) return;
 
     const st = normalizeVoucherStatus(active.status);
 
@@ -402,6 +429,7 @@ export default function BillingSection() {
       return;
     }
 
+    const detailSequence = request.current;
     try {
       setUploadingProof(true);
       setMsg("");
@@ -421,9 +449,11 @@ export default function BillingSection() {
         throw new Error(res.data?.error || "Upload failed");
       }
 
+      if (!current()) return;
       setMsg("Payment proof uploaded. Admin will verify it.");
 
-      await fetchVouchers();
+      if (caseId && detailSequence !== request.current) return;
+      if (!caseId) await fetchVouchers();
       await fetchDetails(active.id);
     } catch (e: any) {
       setMsg(e?.response?.data?.error || e?.message || "Upload failed. Please try again.");
@@ -599,6 +629,8 @@ export default function BillingSection() {
             </div>
           </div>
 
+          {active.rejection_note ? <div className="text-sm text-rose-700">Reason: {active.rejection_note}</div> : null}
+
           <div className="grid md:grid-cols-3 gap-3 text-sm">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-xs text-slate-500">Amount</div>
@@ -659,7 +691,7 @@ export default function BillingSection() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <a
+            {caseId && voucherHref ? <AuthedLink url={voucherHref} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[#004aad] text-white"><Download size={16} /> Download Voucher</AuthedLink> : <a
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
                 voucherHref
                   ? "bg-[#004aad] text-white hover:bg-[#003b82]"
@@ -676,7 +708,7 @@ export default function BillingSection() {
             >
               <Download size={16} />
               Download Voucher
-            </a>
+            </a>}
 
             {canUpload && (
               <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition text-sm font-semibold cursor-pointer">
@@ -712,8 +744,7 @@ export default function BillingSection() {
               </span>
             </div>
 
-            {proofHref && (
-              <a
+            {proofHref && (caseId ? <AuthedLink url={proofHref} className="text-sm font-semibold text-[#004aad]">View uploaded proof</AuthedLink> : <a
                 className="text-sm font-semibold text-[#004aad]"
                 href={proofHref}
                 target="_blank"

@@ -56,7 +56,12 @@ services:
       GOOGLE_IMPERSONATE_USER_EMAIL: ${GOOGLE_IMPERSONATE_USER_EMAIL}
       GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-primary}
 
-      # Voice Intake Agent
+      # Reviewed intake is default-off; Express owns durable business state.
+      INTAKE_V2_ENABLED: ${INTAKE_V2_ENABLED:-false}
+      VOICE_LIVE_INTERNAL_URL: http://voice:8000
+      VOICE_LIVE_BOOTSTRAP_SECRET: ${VOICE_LIVE_BOOTSTRAP_SECRET:-}
+      BACKGROUND_JOBS_ENABLED: ${BACKGROUND_JOBS_ENABLED:-true}
+      # Retained only for historical legacy webhook authentication.
       VOICE_WEBHOOK_SECRET: ${VOICE_WEBHOOK_SECRET}
 
       # Legal RAG Proxy
@@ -88,7 +93,6 @@ services:
       args:
         # API must be reachable from the user’s browser; use host-mapped ports.
         REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:5000}
-        REACT_APP_VOICE_SERVICE_URL: ${REACT_APP_VOICE_SERVICE_URL}
     container_name: insafdaar-frontend
     depends_on:
       - backend
@@ -201,24 +205,27 @@ services:
       context: ../voice_intake_agent
     container_name: insafdaar-voice
     restart: unless-stopped
+    stop_grace_period: 50s
     environment:
-      ENVIRONMENT: production
-      GEMINI_API_KEY: ${VOICE_GEMINI_API_KEY}
-      GEMINI_MODEL: ${VOICE_GEMINI_MODEL:-gemini-2.5-flash}
-      AUDIO_DIR: /data/audio
-      EXPRESS_WEBHOOK_URL: http://backend:5000/api/webhooks/interview-complete
-      EXPRESS_WEBHOOK_SECRET: ${VOICE_WEBHOOK_SECRET}
+      LIVE_ENABLED: ${INTAKE_V2_ENABLED:-false}
+      LIVE_API_KEY: ${VOICE_GEMINI_API_KEY:-}
+      LIVE_MODEL: ${VOICE_LIVE_MODEL:-}
+      LIVE_BOOTSTRAP_SECRET: ${VOICE_LIVE_BOOTSTRAP_SECRET:-}
+      LIVE_FREE_TIER_ATTESTED: ${VOICE_LIVE_FREE_TIER_ATTESTED:-false}
+      LIVE_CAPABILITY_TTL_SECONDS: 300
+      LIVE_MAX_SESSIONS: 1
+      LIVE_ADMISSIONS_PER_MINUTE: 1
       CORS_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
-      - "127.0.0.1:8002:8000"   # browser-facing (localhost = secure ctx for mic)
-    volumes:
-      - ./ai-data/voice-audio:/data/audio
+      - "127.0.0.1:8002:8000"   # local diagnostics; browser signaling goes through Express
+    # Live media/proposals are ephemeral. Historical audio files are left on disk,
+    # but are not mounted into the new runtime.
     mem_limit: 256m
     logging: *default-logging
     # Override Dockerfile HEALTHCHECK: python cold-start on the 1GB micro
     # can exceed the image's 3s timeout under swap pressure.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
       timeout: 10s
       retries: 3

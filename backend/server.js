@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import pool from "./db.js";
 import { verifyToken } from "./middleware/authMiddleware.js";
+import { reviewedIntakeError } from "./middleware/reviewedIntakeError.js";
 import { uploadGuard } from "./utils/uploadGuard.js";
 
 // routes
@@ -27,6 +28,8 @@ import adminRoutes from "./routes/admin/index.js";
 import interviewRoutes from "./routes/interviews.js";
 import webhookRoutes from "./routes/webhooks.js";
 import legalAssistantRoutes from "./routes/legalAssistant.routes.js";
+import liveTranscriptRoutes from "./routes/liveTranscript.routes.js";
+import { startTranscriptMaintenance } from "./services/liveTranscriptCollector.js";
 import internalDraftRoutes from "./routes/internalDraft.routes.js";
 
 // ✅ public routes
@@ -70,6 +73,7 @@ app.use(
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "Idempotency-Key",
       "x-webhook-secret",
       "x-chat-owner-id",
     ],
@@ -125,6 +129,7 @@ app.use("/api/client", clientDocumentsRoutes);
 app.use("/api/client", clientUploadsRoutes);
 
 // ✅ client dashboard modules
+app.use("/api/client/dashboard/start-case/:caseId/intake-v2", liveTranscriptRoutes);
 app.use("/api/client/dashboard", clientDashboardRoutes);
 
 // ✅ advocate dashboard modules
@@ -151,6 +156,9 @@ app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
+// Reviewed intake errors stay sanitized even before route authorization/parsing.
+app.use(reviewedIntakeError);
+
 // ✅ Global error handler (JSON only)
 app.use((err, req, res, next) => {
   res.locals.errorMessage = err?.message || null;
@@ -165,8 +173,14 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  if (process.env.BACKGROUND_JOBS_ENABLED === "false") {
+    console.log("Background jobs explicitly disabled for supervised local testing.");
+    return;
+  }
+  const stopTranscriptMaintenance = startTranscriptMaintenance();
+  server.once("close", stopTranscriptMaintenance);
   startMeetingRemindersJob();
   console.log("⏰ Meeting reminder cron started (24h + 6h).");
   startCourtHearingRemindersJob();

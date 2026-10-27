@@ -1,8 +1,10 @@
 import { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { API_BASE_URL } from "../config";
+import { dashboardForRole, sessionRole } from "../utils/auth";
+import { hasVoiceIntent, VOICE_ENTRY_PATH, withVoiceIntent } from "../utils/voiceEntry";
 
 export default function LoginPage() {
   // role is UI-only (backend decides actual role)
@@ -14,6 +16,7 @@ export default function LoginPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const voiceIntent = hasVoiceIntent(useLocation().search);
 
   const update = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -36,19 +39,20 @@ export default function LoginPage() {
         password: form.password,
       });
 
+      const role = sessionRole(res.data.token, res.data.user);
+      if (!role) {
+        setMsg("Unable to verify your account session or role. Please sign in again.");
+        return;
+      }
+
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
       setMsg(`Welcome ${res.data.user?.name || ""}! Redirecting...`);
 
       setTimeout(() => {
-        const roleRaw = res.data.user?.role || "CLIENT";
-        const role = String(roleRaw).toUpperCase();
-
-        // ✅ redirect by SERVER role
-        if (role === "ADMIN") navigate("/admin");
-        else if (role === "ADVOCATE") navigate("/advocate-dashboard");
-        else navigate("/client-dashboard");
+        // The server role, never the entry intent, decides dashboard access.
+        navigate(role === "CLIENT" && voiceIntent ? VOICE_ENTRY_PATH : dashboardForRole(role));
       }, 800);
     } catch (err: any) {
       const serverMsg = err?.response?.data?.error;
@@ -60,7 +64,8 @@ export default function LoginPage() {
       ) {
         setMsg("Email not verified. Redirecting to OTP...");
         setTimeout(() => {
-          navigate(`/verify-otp?email=${encodeURIComponent(form.email)}`);
+          localStorage.setItem("pending_email", form.email);
+          navigate(withVoiceIntent(`/verify-otp?email=${encodeURIComponent(form.email)}`, voiceIntent));
         }, 900);
         return;
       }
@@ -140,7 +145,7 @@ export default function LoginPage() {
           <p>
             New here?{" "}
             <Link
-              to="/register-client"
+              to={withVoiceIntent("/register-client", voiceIntent)}
               className="text-[#f5b301] font-semibold hover:underline"
             >
               Register as Client

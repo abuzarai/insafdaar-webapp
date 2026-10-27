@@ -705,7 +705,14 @@ export async function getPreparationAIDraftStatus(req, res) {
     const jobId = String(req.params.jobId || "").trim();
     if (!jobId) return res.status(400).json({ error: "jobId is required" });
 
-    const st = await fetchDraftJob(jobId);
+    const caseId = normalizeCaseId(req.params.caseId);
+    if (!Number.isSafeInteger(caseId) || caseId <= 0) {
+      return res.status(400).json({ error: "Invalid caseId" });
+    }
+    const access = await assertCaseAssignedAndActive(caseId, advocateId);
+    if (!access.ok) return res.status(access.status).json(access.payload);
+
+    const st = await fetchDraftJob(jobId, { caseId, advocateId: Number(advocateId) });
     if (!st.ok) {
       if (st.status === 404) {
         return res.status(410).json({ error: "Draft job expired. Please generate again." });

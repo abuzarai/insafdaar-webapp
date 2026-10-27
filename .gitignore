@@ -15,6 +15,7 @@ frontend/.env.*
 
 # Build artifacts
 frontend/build
+frontend/public/vendor/daily/
 backend/dist
 *.log
 

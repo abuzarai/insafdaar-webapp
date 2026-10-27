@@ -1,5 +1,7 @@
 // controllers/clientDashboard/startCase/startCase.controller.js
 import pool from "../../../db.js";
+import { acceptedIntake, intakeError } from "../../../services/reviewedIntake.service.js";
+import { rejectLegacyIntake, matchesAcceptedIntake } from "../../../utils/intakeProtocol.js";
 import { CASE_STATUS, transitionCaseStatus } from "../../../utils/caseLifecycle.js";
 import { enqueueDocumentExtractionJobs } from "../../../services/documentExtraction.service.js";
 import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../utils/interviewMatching.js";
@@ -15,6 +17,8 @@ async function loadCaseWithOwnership(client, caseId, userId) {
         c.language,
         c.status,
         c.interview_completed,
+        c.intake_protocol,
+        c.submitted_intake_revision_id,
         c.legal_domain,
         c.preferred_advocate_id,
         c.preferred_advocate_selected_at,
@@ -75,18 +79,13 @@ async function listCandidatesByRun(client, runId) {
 async function createMatchingRun(client, options) {
   const { caseRow, triggeredBy, shortlistSize = 5 } = options;
 
-  const intakeR = await client.query(
-    `
-      SELECT analysis
-      FROM public.case_intake_sessions
-      WHERE case_id = $1
-      ORDER BY updated_at DESC, id DESC
-      LIMIT 1
-    `,
+  const accepted = caseRow.intake_protocol === "live_v2" ? await acceptedIntake(client, Number(caseRow.id)) : null;
+  if (caseRow.intake_protocol === "live_v2" && !accepted) throw intakeError(409, "SUBMITTED_INTAKE_REQUIRED");
+  const intakeR = accepted ? null : await client.query(
+    `SELECT analysis FROM public.case_intake_sessions WHERE case_id=$1 ORDER BY updated_at DESC,id DESC LIMIT 1`,
     [Number(caseRow.id)]
   );
-
-  const intakeAnalysis = intakeR.rows[0]?.analysis || null;
+  const intakeAnalysis = accepted?.analysis || intakeR?.rows[0]?.analysis || null;
   const inferredLegalDomain =
     String(caseRow.legal_domain || "").trim() ||
     String(intakeAnalysis?.legal_domain || intakeAnalysis?.domain || "").trim() ||
@@ -155,6 +154,8 @@ async function createMatchingRun(client, options) {
         language: caseRow.language || null,
         clientCity: caseRow.client_city || null,
         analysis: intakeAnalysis || null,
+        intakeRevisionId: accepted?.revisionId || null,
+        intakeContentHash: accepted?.contentHash || null,
       }),
     ]
   );
@@ -207,7 +208,15 @@ async function getLatestActiveCase(userId) {
 export async function getActiveStartCase(req, res) {
   try {
     const userId = req.user.id;
-    const c = await getLatestActiveCase(userId);
+    let c;
+    if (req.query?.caseId !== undefined) {
+      const raw = String(req.query.caseId);
+      if (!/^[1-9][0-9]*$/.test(raw) || !Number.isSafeInteger(Number(raw))) return res.status(400).json({ error: "Invalid case selection" });
+      res.set("Cache-Control", "no-store");
+      const selected = await pool.query("SELECT * FROM public.client_cases WHERE id=$1 AND user_id=$2", [Number(raw), userId]);
+      c = selected.rows[0];
+      if (!c) return res.status(404).json({ error: "Case not found" });
+    } else c = await getLatestActiveCase(userId);
     if (!c) return res.json({ case: null });
 
     const labels = buildCaseLabel(c.id, {
@@ -225,9 +234,10 @@ export async function getActiveStartCase(req, res) {
 
 /**
  * ✅ POST /api/client/dashboard/start-case/draft
- * body: { caseId?, title?, description, language? }
+ * body: { caseId?, title?, description, language?, createOnly? }
  *
  * Behavior:
+ * - createOnly → return an existing active case read-only, or insert an empty draft
  * - If caseId provided → update that specific case
  * - Else → update latest DRAFT for this user OR create new
  */
@@ -239,7 +249,25 @@ export async function createDraftCase(req, res) {
       title = null,
       description,
       language = "English",
+      createOnly = false,
     } = req.body || {};
+
+    if (typeof createOnly !== "boolean" || (createOnly && caseId !== null)) {
+      return res.status(400).json({ error: "createOnly must be boolean and cannot be combined with caseId" });
+    }
+    if (createOnly) {
+      // Fresh live entry may discover another tab's case, but must never overwrite it.
+      const existing = await getLatestActiveCase(userId);
+      if (existing) return res.json({ created: false, case: existing });
+      const inserted = await pool.query(
+        `INSERT INTO public.client_cases
+          (user_id, title, description, source, language, status, updated_at)
+         VALUES ($1,NULL,'','text','mixed','DRAFT',NOW())
+         RETURNING *`,
+        [userId]
+      );
+      return res.json({ created: true, case: inserted.rows[0] });
+    }
 
     if (!description || !String(description).trim()) {
       return res.status(400).json({ error: "description is required" });
@@ -248,10 +276,11 @@ export async function createDraftCase(req, res) {
     // ✅ 1) If frontend sends caseId, update that exact case (recommended)
     if (caseId) {
       const own = await pool.query(
-        `SELECT id, status FROM public.client_cases WHERE id=$1 AND user_id=$2`,
+        `SELECT id, status, intake_protocol FROM public.client_cases WHERE id=$1 AND user_id=$2`,
         [Number(caseId), userId]
       );
       if (own.rows.length === 0) return res.status(404).json({ error: "Case not found" });
+      if (rejectLegacyIntake(res, own.rows[0])) return;
 
       const upd = await pool.query(
         `
@@ -262,11 +291,12 @@ export async function createDraftCase(req, res) {
           language = COALESCE($4, language),
           source = 'text',
           updated_at = NOW()
-        WHERE id=$1 AND user_id=$5
+        WHERE id=$1 AND user_id=$5 AND intake_protocol='legacy'
         RETURNING *
         `,
         [Number(caseId), title, String(description).trim(), String(language), userId]
       );
+      if (!upd.rows[0]) return res.status(409).json({ error: "Case changed; refresh before editing" });
 
       return res.json({ message: "Draft updated", case: upd.rows[0] });
     }
@@ -274,7 +304,7 @@ export async function createDraftCase(req, res) {
     // ✅ 2) If no caseId: update latest DRAFT if exists
     const existingDraft = await pool.query(
       `
-      SELECT id
+      SELECT id, intake_protocol
       FROM public.client_cases
       WHERE user_id=$1 AND status='DRAFT'
       ORDER BY updated_at DESC, id DESC
@@ -284,6 +314,7 @@ export async function createDraftCase(req, res) {
     );
 
     if (existingDraft.rows.length > 0) {
+      if (rejectLegacyIntake(res, existingDraft.rows[0])) return;
       const draftId = existingDraft.rows[0].id;
 
       const upd = await pool.query(
@@ -295,11 +326,12 @@ export async function createDraftCase(req, res) {
           language = COALESCE($4, language),
           source = 'text',
           updated_at = NOW()
-        WHERE id=$1 AND user_id=$5
+        WHERE id=$1 AND user_id=$5 AND intake_protocol='legacy'
         RETURNING *
         `,
         [Number(draftId), title, String(description).trim(), String(language), userId]
       );
+      if (!upd.rows[0]) return res.status(409).json({ error: "Case changed; refresh before editing" });
 
       return res.json({ message: "Draft updated", case: upd.rows[0] });
     }
@@ -333,10 +365,11 @@ export async function startAiInterviewSession(req, res) {
     if (!caseId) return res.status(400).json({ error: "caseId is required" });
 
     const c = await pool.query(
-      `SELECT id FROM public.client_cases WHERE id=$1 AND user_id=$2`,
+      `SELECT id, intake_protocol FROM public.client_cases WHERE id=$1 AND user_id=$2`,
       [Number(caseId), userId]
     );
     if (c.rows.length === 0) return res.status(404).json({ error: "Case not found" });
+    if (rejectLegacyIntake(res, c.rows[0])) return;
 
     const s = await pool.query(
       `
@@ -353,7 +386,7 @@ export async function startAiInterviewSession(req, res) {
       `
       UPDATE public.client_cases
       SET status='INTAKE_STARTED', source='ai', updated_at=NOW()
-      WHERE id=$1
+      WHERE id=$1 AND intake_protocol='legacy'
       `,
       [Number(caseId)]
     );
@@ -376,10 +409,11 @@ export async function uploadOtherLanguageVoice(req, res) {
     if (!req.file) return res.status(400).json({ error: "audio file is required" });
 
     const c = await pool.query(
-      `SELECT id FROM public.client_cases WHERE id=$1 AND user_id=$2`,
+      `SELECT id, intake_protocol FROM public.client_cases WHERE id=$1 AND user_id=$2`,
       [Number(caseId), userId]
     );
     if (c.rows.length === 0) return res.status(404).json({ error: "Case not found" });
+    if (rejectLegacyIntake(res, c.rows[0])) return;
 
     const audioUrl = `/uploads/case-audio/${req.file.filename}`;
 
@@ -396,7 +430,7 @@ export async function uploadOtherLanguageVoice(req, res) {
       `
       UPDATE public.client_cases
       SET source='voice', language=$2, updated_at=NOW()
-      WHERE id=$1
+      WHERE id=$1 AND intake_protocol='legacy'
       `,
       [Number(caseId), String(language)]
     );
@@ -451,7 +485,7 @@ export async function uploadCaseDocument(req, res) {
 
     if (language && String(language).trim()) {
       await pool.query(
-        `UPDATE public.client_cases SET language=$2, updated_at=NOW() WHERE id=$1 AND user_id=$3`,
+        `UPDATE public.client_cases SET language=$2, updated_at=NOW() WHERE id=$1 AND user_id=$3 AND intake_protocol='legacy'`,
         [Number(caseId), String(language), userId]
       );
     }
@@ -539,11 +573,11 @@ export async function markInterviewCompleteForCase(req, res) {
     // persisted transcript/analysis into case_intake_sessions). This prevents
     // clients from skipping the AI intake and injecting an arbitrary domain.
     const sessionRes = await pool.query(
-      `SELECT 1 FROM case_intake_sessions
-       WHERE case_id = $1 AND status = 'COMPLETED'
-         AND (transcript IS NOT NULL OR analysis IS NOT NULL)
+      `SELECT 1 FROM case_intake_sessions s JOIN client_cases c ON c.id=s.case_id
+       WHERE s.case_id = $1 AND s.status = 'COMPLETED' AND c.user_id=$2
+         AND c.intake_protocol='legacy' AND (s.transcript IS NOT NULL OR s.analysis IS NOT NULL)
        LIMIT 1`,
-      [caseId]
+      [caseId, userId]
     );
     if (sessionRes.rows.length === 0) {
       return res.status(400).json({
@@ -564,7 +598,7 @@ export async function markInterviewCompleteForCase(req, res) {
             END,
             updated_at = NOW()
         WHERE id = $1
-          AND user_id = $2
+          AND user_id = $2 AND intake_protocol='legacy'
         RETURNING id, status, interview_completed, legal_domain
       `,
       [caseId, userId, legalDomain]
@@ -608,7 +642,10 @@ export async function getCaseMatchingForClient(req, res) {
       });
     }
 
+    const accepted = caseRow.intake_protocol === "live_v2" ? await acceptedIntake(client, caseId) : null;
+    if (caseRow.intake_protocol === "live_v2" && !accepted) throw intakeError(409, "SUBMITTED_INTAKE_REQUIRED");
     let run = await getLatestMatchingRun(client, caseId);
+    if (caseRow.intake_protocol === "live_v2" && !matchesAcceptedIntake(accepted, run?.input_snapshot)) run = null;
     if (!run) {
       run = await createMatchingRun(client, {
         caseRow,
@@ -660,7 +697,7 @@ export async function getCaseMatchingForClient(req, res) {
     try {
       await client.query("ROLLBACK");
     } catch {}
-    return res.status(500).json({ error: err.message || "Failed to load matching" });
+    return res.status(err.status || 500).json({ error: err.code && err.status ? err.code : "Failed to load matching" });
   } finally {
     client.release();
   }
@@ -689,10 +726,11 @@ export async function selectPreferredAdvocate(req, res) {
       return res.status(404).json({ error: "Case not found" });
     }
 
+    const accepted = caseRow.intake_protocol === "live_v2" ? await acceptedIntake(client, caseId) : null;
     const run = await getLatestMatchingRun(client, caseId);
-    if (!run) {
+    if (!run || (caseRow.intake_protocol === "live_v2" && !matchesAcceptedIntake(accepted, run.input_snapshot))) {
       await client.query("ROLLBACK");
-      return res.status(409).json({ error: "Matching shortlist not found. Run matching first." });
+      return res.status(409).json({ error: "Matching shortlist not found for submitted intake. Run matching first." });
     }
 
     const candidateR = await client.query(

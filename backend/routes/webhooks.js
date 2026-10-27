@@ -1,5 +1,6 @@
 // backend/routes/webhooks.js
 import express from "express";
+import { rejectLegacyIntake } from "../utils/intakeProtocol.js";
 import { createHash } from "crypto";
 import pool from "../db.js";
 
@@ -44,9 +45,11 @@ router.post("/interview-complete", async (req, res) => {
         // The voice service is the only source; delivery is at-least-once, so
         // dedupe on the canonical result hash before applying an update.
         const existing = await pool.query(
-            `SELECT result_hash FROM case_intake_sessions WHERE session_id = $1`,
+            `SELECT s.result_hash,c.intake_protocol FROM case_intake_sessions s
+             LEFT JOIN client_cases c ON c.id=s.case_id WHERE s.session_id=$1`,
             [session_id]
         );
+        if (rejectLegacyIntake(res, existing.rows[0])) return;
         if (existing.rows.length > 0 && existing.rows[0].result_hash === resultHash) {
             console.log("Duplicate webhook ignored", {
                 sessionId: session_id,
@@ -84,7 +87,8 @@ router.post("/interview-complete", async (req, res) => {
            webhook_received_at = NOW(),
            result_hash = COALESCE($7, result_hash),
            updated_at = NOW()
-        WHERE session_id = $5
+        WHERE session_id = $5 AND NOT EXISTS
+          (SELECT 1 FROM client_cases c WHERE c.id=case_intake_sessions.case_id AND c.intake_protocol='live_v2')
        RETURNING id, case_id, completion_source, result_hash`,
             [
                 transcript || null,
@@ -107,7 +111,7 @@ router.post("/interview-complete", async (req, res) => {
            SET legal_domain = COALESCE($1, legal_domain),
                interview_completed = true,
                updated_at = NOW()
-           WHERE id = $2`,
+           WHERE id = $2 AND intake_protocol='legacy'`,
                     [analysis.legal_domain || null, case_id]
                 ).catch((e) => console.error("Failed to update client_cases:", e));
             }

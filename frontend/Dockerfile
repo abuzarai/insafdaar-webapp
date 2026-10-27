@@ -13,9 +13,7 @@ RUN npm config set fetch-retries 5 \
 COPY . .
 
 ARG REACT_APP_API_BASE_URL=http://localhost:5000
-ARG REACT_APP_VOICE_SERVICE_URL=http://localhost:8000
 ENV REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
-ENV REACT_APP_VOICE_SERVICE_URL=${REACT_APP_VOICE_SERVICE_URL}
 
 # Build the production bundle
 RUN npm run build

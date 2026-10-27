@@ -1,147 +1,74 @@
-name: Deploy to Oracle VM
+name: Install owner-approved release
 
 on:
-  # Sibling repos call this file on their own pushes (reusable workflow,
-  # caller's secrets are inherited; no cross-repo PAT needed).
-  workflow_call:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      release_id:
+        description: Pre-staged release directory name
+        required: true
+        type: string
+      manifest_sha256:
+        description: SHA256 of the reviewed manifest.json
+        required: true
+        type: string
 
-# Runs solely on pushes (webapp here, siblings via workflow_call) or a
-# manual Run workflow click. No schedule. Parallel callers are safe:
-# deploy.sh flocks the VM and the SHA gate skips repos already shipped.
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-vm
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  approval-gate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout webapp (compose owner + shared contexts)
+      - name: Require manual owner approval on main
+        env:
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_TRIGGERING_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          [[ "$RELEASE_ID" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]]
+          [[ "$MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+        shell: bash
+
+  install-paused:
+    if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
+    needs: approval-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the deployment controls used by this workflow
         uses: actions/checkout@v4
         with:
-          repository: abuzarai/insafdaar-webapp
-          # Pin main: on sibling-triggered runs github.sha is the CALLER's
-          # commit, which does not exist in this repo.
-          ref: main
-          path: insafdaar
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
-      - name: Clone sibling repos
-        run: |
-          cd insafdaar
-          git clone -q --depth 1 -b main https://github.com/abuzarai/legal-rag-assistant.git ../legal-rag-assistant
-          git clone -q --depth 1 -b main https://github.com/abuzarai/drafting-assistant.git ../drafting-assistant
-          git clone -q --depth 1 -b main https://github.com/abuzarai/voice-intake-agent.git ../voice_intake_agent
-        shell: bash
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: insafdaar/backend
-          load: true
-          tags: webapp-backend:latest
-          cache-from: type=gha,scope=webapp-backend
-          cache-to: type=gha,mode=max,scope=webapp-backend
-
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: insafdaar/frontend
-          load: true
-          tags: webapp-frontend:latest
-          build-args: |
-            REACT_APP_API_BASE_URL=${FRONTEND_API_BASE_URL}
-            REACT_APP_VOICE_SERVICE_URL=${FRONTEND_API_BASE_URL}
-          cache-from: type=gha,scope=webapp-frontend
-          cache-to: type=gha,mode=max,scope=webapp-frontend
-
-      - name: Build legal-rag image
-        uses: docker/build-push-action@v6
-        with:
-          context: legal-rag-assistant
-          load: true
-          tags: webapp-legal-rag:latest
-          cache-from: type=gha,scope=webapp-legal-rag
-          cache-to: type=gha,mode=max,scope=webapp-legal-rag
-
-      - name: Build drafting image
-        uses: docker/build-push-action@v6
-        with:
-          context: drafting-assistant
-          load: true
-          tags: webapp-drafting:latest
-          cache-from: type=gha,scope=webapp-drafting
-          cache-to: type=gha,mode=max,scope=webapp-drafting
-
-      - name: Build voice image
-        uses: docker/build-push-action@v6
-        with:
-          context: voice_intake_agent
-          load: true
-          tags: webapp-voice:latest
-          cache-from: type=gha,scope=webapp-voice
-          cache-to: type=gha,mode=max,scope=webapp-voice
-
-      # Ship only images whose source repo moved past the VM's checkout.
-      # Repo SHAs, not image ids: an id differs on every build even when
-      # content is identical, and re-streaming the 1GB voice image to the
-      # slow host is what used to hang deploys for hours.
-      # Repos are at $GITHUB_WORKSPACE/{insafdaar,legal-rag-assistant,...}
-      # — this step's working directory IS $GITHUB_WORKSPACE.
-      - name: Ship changed images to VM
+      - name: Verify and install the staged release
         env:
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
-          SSHCMD="ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=10 ubuntu@$DEPLOY_HOST"
-          ship_if_repo_changed () {
-            svc="$1"
-            repo="$2"
-            case "$repo" in
-              webapp) local_sha=$(git -C insafdaar rev-parse HEAD) ;;
-              *)      local_sha=$(git -C "$repo" rev-parse HEAD) ;;
-            esac
-            remote_sha=none
-            for i in 1 2 3; do
-              if out=$(eval "$SSHCMD" "'git -C ~/insafdaar/$repo rev-parse HEAD 2>/dev/null'"); then
-                remote_sha="$out"
-                break
-              fi
-              sleep 5
-            done
-            if [ "$local_sha" != "$remote_sha" ]; then
-              echo "shipping webapp-$svc ($repo $local_sha -> $remote_sha)"
-              docker save "webapp-$svc:latest" | eval "$SSHCMD" "docker load -q"
-            else
-              echo "webapp-$svc unchanged ($repo @ $local_sha)"
-            fi
-          }
-          ship_if_repo_changed backend webapp
-          ship_if_repo_changed frontend webapp
-          ship_if_repo_changed legal-rag legal-rag-assistant
-          ship_if_repo_changed drafting drafting-assistant
-          ship_if_repo_changed voice voice_intake_agent
-        shell: bash
-
-      - name: Apply on VM
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
-            -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes \
-            ubuntu@"$DEPLOY_HOST" 'bash ~/insafdaar/webapp/scripts/deploy.sh'
+          set -euo pipefail
+          umask 077
+          [[ "$RELEASE_ID" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]]
+          [[ "$MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          test -n "$DEPLOY_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          trap 'rm -f ~/.ssh/deploy_key' EXIT
+          runner_sha=$(sha256sum scripts/apply-migrations.sh | cut -d ' ' -f 1)
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            "ubuntu@$DEPLOY_HOST" \
+            "bash -s -- '$RELEASE_ID' '$MANIFEST_SHA256' '$runner_sha'" < scripts/deploy.sh
         shell: bash

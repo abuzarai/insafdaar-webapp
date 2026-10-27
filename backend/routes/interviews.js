@@ -1,5 +1,6 @@
 // backend/routes/interviews.js
 import express from "express";
+import { rejectLegacyIntake } from "../utils/intakeProtocol.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import pool from "../db.js";
 import { createHash } from "crypto";
@@ -35,12 +36,13 @@ router.post("/start", authMiddleware, async (req, res) => {
         // Interviews are private to the case owner: verify before linking.
         if (caseId) {
             const owned = await pool.query(
-                "SELECT id FROM client_cases WHERE id=$1 AND user_id=$2",
+                "SELECT id, intake_protocol FROM client_cases WHERE id=$1 AND user_id=$2",
                 [Number(caseId), req.user.id]
             );
             if (owned.rows.length === 0) {
                 return res.status(404).json({ error: "Case not found" });
             }
+            if (rejectLegacyIntake(res, owned.rows[0])) return;
         }
 
         const result = await pool.query(
@@ -116,24 +118,27 @@ router.post("/complete", authMiddleware, async (req, res) => {
         // The fallback path is caller-driven (the client's own JWT), so the
         // session and the target case must both belong to the caller.
         const sessionRow = await pool.query(
-            "SELECT id, user_id, case_id FROM case_intake_sessions WHERE session_id = $1",
+            `SELECT s.id,s.user_id,s.case_id,c.intake_protocol FROM case_intake_sessions s
+             LEFT JOIN client_cases c ON c.id=s.case_id WHERE s.session_id=$1`,
             [sessionId]
         );
         if (sessionRow.rows.length > 0 && Number(sessionRow.rows[0].user_id) !== Number(req.user.id)) {
             return res.status(403).json({ error: "Forbidden" });
         }
+        if (rejectLegacyIntake(res, sessionRow.rows[0])) return;
         const sessionCaseId = sessionRow.rows[0]?.case_id
             ? Number(sessionRow.rows[0].case_id)
             : null;
         const targetCaseId = caseId ? Number(caseId) : sessionCaseId;
         if (targetCaseId) {
             const owned = await pool.query(
-                "SELECT id FROM client_cases WHERE id=$1 AND user_id=$2",
+                "SELECT id, intake_protocol FROM client_cases WHERE id=$1 AND user_id=$2",
                 [targetCaseId, req.user.id]
             );
             if (owned.rows.length === 0) {
                 return res.status(403).json({ error: "Forbidden" });
             }
+            if (rejectLegacyIntake(res, owned.rows[0])) return;
         }
 
         const normalizedTranscript = transcript ? String(transcript) : null;
@@ -167,7 +172,8 @@ router.post("/complete", authMiddleware, async (req, res) => {
                  fallback_received_at = NOW(),
                  result_hash = COALESCE($6, result_hash),
                  updated_at = NOW()
-             WHERE session_id = $4
+             WHERE session_id = $4 AND NOT EXISTS
+               (SELECT 1 FROM client_cases c WHERE c.id=case_intake_sessions.case_id AND c.intake_protocol='live_v2')
              RETURNING id, case_id, session_id, status, completed_at, completion_source, result_hash`,
             [
                 normalizedTranscript,
@@ -229,7 +235,7 @@ router.post("/complete", authMiddleware, async (req, res) => {
                        ELSE interview_completed
                      END,
                      updated_at = NOW()
-                 WHERE id = $4`,
+                 WHERE id = $4 AND intake_protocol='legacy'`,
                 [
                     normalizedAnalysis?.legal_domain || null,
                     normalizedTranscript,

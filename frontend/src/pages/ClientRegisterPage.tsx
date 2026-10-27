@@ -1,11 +1,13 @@
 import { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../config";
+import { hasVoiceIntent, withVoiceIntent } from "../utils/voiceEntry";
 
 export default function ClientRegisterPage() {
   const navigate = useNavigate();
+  const voiceIntent = hasVoiceIntent(useLocation().search);
 
   const [form, setForm] = useState({
     name: "",
@@ -41,7 +43,7 @@ export default function ClientRegisterPage() {
       setMsg("OTP sent to your email. Redirecting to verification...");
 
       // ✅ go to OTP page
-      setTimeout(() => navigate("/verify-otp"), 800);
+      setTimeout(() => navigate(withVoiceIntent("/verify-otp", voiceIntent)), 800);
     } catch (err: any) {
       const serverMsg = err?.response?.data?.error;
       setMsg(serverMsg ? `${serverMsg}` : "Registration failed. Please try again.");
@@ -168,7 +170,7 @@ export default function ClientRegisterPage() {
         <div className="mt-6 text-center text-sm text-gray-400">
           <p>
             Already have an account?{" "}
-            <a href="/login" className="text-[#f5b301] font-semibold hover:underline">
+            <a href={withVoiceIntent("/login", voiceIntent)} className="text-[#f5b301] font-semibold hover:underline">
               Login here
             </a>
           </p>

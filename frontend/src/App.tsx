@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
   useNavigate,
 } from "react-router-dom";
@@ -19,6 +20,7 @@ import VerifyOtpPage from "./pages/VerifyOtpPage";
 
 import NotFoundPage from "./pages/NotFoundPage";
 import RequireAuth from "./routes/RequireAuth";
+import { VOICE_ENTRY_PATH } from "./utils/voiceEntry";
 import "./utils/http"; // axios defaults (timeout) before any page uses axios
 import AdvocateDashboardPage from "./pages/AdvocateDashboardPage";
 import ClientDashboardPage from "./pages/ClientDashboardPage";
@@ -151,6 +153,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/voice" element={<Navigate to={VOICE_ENTRY_PATH} replace />} />
 
           <Route path="/register-client" element={<ClientRegisterPage />} />
           <Route path="/register-advocate" element={<AdvocateRegisterPage />} />
@@ -167,7 +170,7 @@ export default function App() {
           <Route path="/legal-assistant" element={<LegalAssistantPage />} />
 
           {/* Dashboards */}
-          <Route element={<RequireAuth />}>
+          <Route element={<RequireAuth roles={["CLIENT"]} />}>
             <Route
               path="/client-dashboard"
               element={<ClientDashboardWithBackButton />}

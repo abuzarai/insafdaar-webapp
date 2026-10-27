@@ -709,7 +709,13 @@ export async function getContractAIDraftStatusByAdvocate(req, res) {
     const jobId = String(req.params.jobId || "").trim();
     if (!jobId) return res.status(400).json({ error: "jobId is required" });
 
-    const st = await fetchDraftJob(jobId);
+    const caseId = Number(req.params.caseId);
+    if (!Number.isSafeInteger(caseId) || caseId <= 0) {
+      return res.status(400).json({ error: "Invalid caseId" });
+    }
+    await getAssignedCase(pool, caseId, advocateId);
+
+    const st = await fetchDraftJob(jobId, { caseId, advocateId });
     if (!st.ok) {
       if (st.status === 404) {
         return res.status(410).json({ error: "Draft job expired. Please generate again." });
@@ -736,7 +742,7 @@ export async function getContractAIDraftStatusByAdvocate(req, res) {
     }
     return res.json({ ok: true, status: body.status || "queued" });
   } catch (err) {
-    return res.status(500).json({ error: err.message || "Failed to check draft status" });
+    return res.status(err?.status || 500).json({ error: err.message || "Failed to check draft status" });
   }
 }
 

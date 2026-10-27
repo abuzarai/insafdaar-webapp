@@ -1,13 +1,11 @@
-import { formatStatus } from "../../common/formatStatus";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useId, useRef } from "react";
+import { profileProgress } from "../utils/profileProgress";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
 import AuthedLink from "../../common/AuthedLink";
 import UserAvatar from "../../common/UserAvatar";
 import {
-  BadgeCheck,
   ShieldCheck,
-  Lock,
   Save,
   Camera,
   LayoutGrid,
@@ -15,7 +13,6 @@ import {
   Phone,
   MapPin,
   CalendarDays,
-  FileText,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
@@ -44,36 +41,6 @@ const CLIENT_BASE = `${API_BASE_URL}/api/client`;
 function authHeaders() {
   const token = localStorage.getItem("token");
   return { Authorization: `Bearer ${token}` };
-}
-
-function StatusPill({ status }: { status: ProfileStatus }) {
-  const styles = {
-    VERIFIED: "bg-emerald-100 text-emerald-700 border-emerald-300",
-    PENDING_VERIFICATION: "bg-amber-100 text-amber-700 border-amber-300",
-    INCOMPLETE: "bg-slate-100 text-slate-700 border-slate-300",
-  };
-
-  const icons = {
-    VERIFIED: BadgeCheck,
-    PENDING_VERIFICATION: ShieldCheck,
-    INCOMPLETE: Lock,
-  };
-
-  const labels = {
-    VERIFIED: "Verified",
-    PENDING_VERIFICATION: "Pending",
-    INCOMPLETE: "Incomplete",
-  };
-
-  const Icon = icons[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${styles[status]}`}
-    >
-      <Icon size={14} />
-      {labels[status]}
-    </span>
-  );
 }
 
 // Helpers
@@ -138,10 +105,12 @@ function InputField({
   error?: string;
   type?: string;
 }) {
+  const id = useId();
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium text-slate-700">{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-slate-700">{label}</label>
       <input
+        id={id} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
         type={type}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
@@ -157,7 +126,7 @@ function InputField({
         `}
       />
       {error && (
-        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+        <p id={`${id}-error`} className="text-xs text-red-600 mt-1 flex items-center gap-1">
           <AlertCircle size={14} /> {error}
         </p>
       )}
@@ -205,6 +174,11 @@ export default function ClientProfileSection({
 }: {
   onProfileUpdated?: () => void;
 }) {
+  const ownerToken = useRef(localStorage.getItem("token")).current;
+  const alive = useRef(true);
+  const docsSequence = useRef(0);
+  const current = () => alive.current && ownerToken === localStorage.getItem("token");
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [form, setForm] = useState<ClientProfile>({
     fullName: "",
     email: "",
@@ -224,29 +198,25 @@ export default function ClientProfileSection({
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const [msg, setMsg] = useState<string>("");
 
   const [docs, setDocs] = useState<any[]>([]);
+  const [docsLoading, setDocsLoading] = useState(true);
+  const [docsError, setDocsError] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [, setAvatarUploading] = useState(false);
 
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useState<TabKey>("personal");
   const [viewMode, setViewMode] = useState(false);
 
-  const completeness = useMemo(() => {
-    const required = [
-      form.fullName,
-      form.phone,
-      form.cnic,
-      form.city,
-      form.address,
-      form.location,
-      form.emergencyContactName,
-      form.emergencyContactPhone,
-    ];
-    const filled = required.filter((x) => (x || "").trim().length > 0).length;
-    return Math.round((filled / required.length) * 100);
-  }, [form]);
+  const progress = useMemo(() => profileProgress(form), [form]);
+  const completeness = progress.percent;
 
   const canStartCase = completeness === 100 && form.documentsCompleted;
 
@@ -271,35 +241,43 @@ export default function ClientProfileSection({
       setLoading(true);
       const res = await axios.get(`${CLIENT_BASE}/`, { headers: authHeaders() });
 
+      if (!current()) return;
       // supports {profile: ...} and {success:true, profile: ...}
       const profile = res.data?.profile ?? res.data?.data?.profile ?? null;
 
       if (!profile) {
-        setMsg("Profile response missing 'profile'.");
+        setMsg("We couldn’t load your profile. Please try again.");
         return;
       }
 
       setForm((p) => ({ ...p, ...profile }));
     } catch (err: any) {
-      console.error("Profile load failed:", err);
+      if (!current()) return;
       setMsg(
-        err.response?.status === 404
-          ? "Profile endpoint not found. Confirm backend mount: /api/client"
-          : "Session expired. Please logout and login again."
+        err.response?.status === 401 || err.response?.status === 403
+          ? "Please sign in again to view your profile."
+          : "We couldn’t load your profile. Please try again."
       );
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   };
 
   const loadDocs = async () => {
+    const sequence = ++docsSequence.current;
+    setDocsLoading(true);
+    setDocsError(false);
     try {
       const res = await axios.get(`${CLIENT_BASE}/documents`, {
         headers: authHeaders(),
       });
-      setDocs(res.data?.documents || []);
-    } catch (err) {
-      console.error("Documents load failed:", err);
+      if (!current() || sequence !== docsSequence.current) return;
+      if (!Array.isArray(res.data?.documents)) throw new Error("Document list unavailable");
+      setDocs(res.data.documents);
+    } catch {
+      if (current() && sequence === docsSequence.current) setDocsError(true);
+    } finally {
+      if (current() && sequence === docsSequence.current) setDocsLoading(false);
     }
   };
 
@@ -315,11 +293,14 @@ export default function ClientProfileSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onChange = (k: keyof ClientProfile, v: string) =>
+  const onChange = (k: keyof ClientProfile, v: string) => {
+    setDirty(true);
     setForm((p) => ({ ...p, [k]: v }));
+  };
 
   const saveProfile = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!current() || saving) return;
     setMsg("");
 
     if (!form.fullName.trim()) return setMsg("Full name is required.");
@@ -330,7 +311,7 @@ export default function ClientProfileSection({
     setSaving(true);
     try {
       const cnicDigits = normalizeDigits(form.cnic);
-      const payload = { ...form, cnic: formatCnic(cnicDigits) };
+      const payload = { ...form, cnic: cnicDigits ? formatCnic(cnicDigits) : "" };
 
       await axios.put(
         `${CLIENT_BASE}/`,
@@ -338,20 +319,23 @@ export default function ClientProfileSection({
         { headers: authHeaders() }
       );
 
-      setMsg("Profile updated successfully");
+      if (!current()) return;
+      setDirty(false);
+      setMsg("Your profile has been saved. You can return to finish any remaining details.");
       await loadProfile();
       onProfileUpdated?.();
     } catch (e: any) {
-      console.error("Save failed:", e);
+      if (!current()) return;
       setMsg(
-        e?.response?.data?.error || "Failed to save profile. Check console for details."
+        "We couldn’t save your profile. Your changes are still here. Please try again."
       );
     } finally {
-      setSaving(false);
+      if (current()) setSaving(false);
     }
   };
 
   const uploadAvatar = async (file: File) => {
+    if (!current()) return;
     setAvatarUploading(true);
     try {
       const fd = new FormData();
@@ -361,13 +345,14 @@ export default function ClientProfileSection({
         headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
       });
 
+      if (!current()) return;
       setForm((p) => ({ ...p, avatarUrl: res.data?.avatarUrl || "" }));
       setMsg("Profile photo updated");
       onProfileUpdated?.();
     } catch (e: any) {
-      setMsg("Avatar upload failed.");
+      if (current()) setMsg("Avatar upload failed.");
     } finally {
-      setAvatarUploading(false);
+      if (current()) setAvatarUploading(false);
     }
   };
 
@@ -375,6 +360,7 @@ export default function ClientProfileSection({
     docType: "CNIC_FRONT" | "CNIC_BACK" | "ADDRESS_PROOF",
     file: File
   ) => {
+    if (!current()) return;
     setUploading(docType);
     try {
       const fd = new FormData();
@@ -385,20 +371,22 @@ export default function ClientProfileSection({
         headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
       });
 
+      if (!current()) return;
       setMsg(`${docType.replace("_", " ")} uploaded`);
       await loadDocs();
       // ✅ Update ONLY the doc-gate flag from the upload response — do NOT
       // refetch+overwrite the form here (it wiped unsaved field edits and
       // looked like a page refresh). The sidebar gate refreshes via callback.
+      if (!current()) return;
       const completed = res.data?.documentsCompleted;
       if (typeof completed === "boolean") {
         setForm((p) => ({ ...p, documentsCompleted: completed }));
       }
       onProfileUpdated?.();
     } catch (e: any) {
-      setMsg("Upload failed.");
+      if (current()) setMsg("Upload failed.");
     } finally {
-      setUploading(null);
+      if (current()) setUploading(null);
     }
   };
 
@@ -412,6 +400,36 @@ export default function ClientProfileSection({
         Loading profile...
       </div>
     );
+
+  const renderDocumentRows = (readOnly = false) => {
+    if (docsLoading) return <p role="status">Loading documents…</p>;
+    if (docsError) return <p>Document list unavailable. Use Try again above to check your uploads.</p>;
+    return requiredDocTypes.map((t) => {
+    const document = docs.find((d) => d.doc_type === t);
+    const uploaded = uploadedTypes.has(t);
+    return (
+      <div key={t} className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
+        <div>
+          <div className="font-medium">{t.replace("_", " ")}</div>
+          <div className={`text-xs mt-1 flex items-center gap-1 ${uploaded ? "text-emerald-700" : "text-slate-500"}`}>
+            {uploaded && <CheckCircle2 size={14} aria-hidden="true" />}
+            {uploaded ? "Uploaded" : "Missing"}
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {document?.file_url && <AuthedLink url={document.file_url} className="text-[#004aad] hover:underline font-medium">View</AuthedLink>}
+          {!readOnly && <label className="text-[#004aad] font-medium cursor-pointer rounded px-2 py-3 focus-within:ring-2 focus-within:ring-blue-600">
+            <input type="file" className="sr-only" accept=".png,.jpg,.jpeg,.pdf"
+              aria-label={`${uploaded ? "Replace" : "Upload"} ${t.replace("_", " ")}`}
+              disabled={uploading === t}
+              onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadDoc(t, file); }} />
+            {uploading === t ? "Uploading..." : uploaded ? "Replace" : "Upload"}
+          </label>}
+        </div>
+      </div>
+    );
+    });
+  };
 
   const renderMobileTabContent = () => {
     if (viewMode) {
@@ -428,14 +446,6 @@ export default function ClientProfileSection({
               </Card>
               <Card title="Verification Status" icon={<ShieldCheck size={18} />}>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span>Identity Document</span>
-                    <StatusPill status={form.identityDocStatus} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Address Proof</span>
-                    <StatusPill status={form.addressProofStatus} />
-                  </div>
                   <div className="pt-2 border-t">
                     <span className="text-sm font-medium">
                       Documents:{" "}
@@ -484,46 +494,9 @@ export default function ClientProfileSection({
 
         case "verification":
           return (
-            <div className="space-y-5">
-              <Card title="Verification Status" icon={<ShieldCheck size={18} />}>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span>Identity Document</span>
-                    <StatusPill status={form.identityDocStatus} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Address Proof</span>
-                    <StatusPill status={form.addressProofStatus} />
-                  </div>
-                </div>
-              </Card>
-
-              {docs.length > 0 && (
-                <Card title="Uploaded Documents" icon={<FileText size={18} />}>
-                  <ul className="space-y-3">
-                    {docs.map((d) => (
-                      <li
-                        key={d.id}
-                        className="flex justify-between items-center p-3 bg-slate-50 rounded-xl"
-                      >
-                        <div>
-                          <div className="font-medium">
-                            {String(d.doc_type || "").replace("_", " ")}
-                          </div>
-                          <div className="text-xs text-slate-500">{formatStatus(d.status)}</div>
-                        </div>
-                        <AuthedLink
-                          url={d.file_url}
-                          className="text-[#004aad] hover:underline font-medium"
-                        >
-                          View
-                        </AuthedLink>
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              )}
-            </div>
+            <Card title="Verification & Documents" icon={<ShieldCheck size={18} />}>
+              {renderDocumentRows(true)}
+            </Card>
           );
       }
     }
@@ -619,72 +592,19 @@ export default function ClientProfileSection({
         return (
           <Card title="Verification & Documents" icon={<ShieldCheck size={18} />}>
             <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 rounded-xl">
-                  <div className="text-sm font-medium mb-2">Identity Document</div>
-                  <StatusPill status={form.identityDocStatus} />
-                </div>
-                <div className="p-4 bg-slate-50 rounded-xl">
-                  <div className="text-sm font-medium mb-2">Address Proof</div>
-                  <StatusPill status={form.addressProofStatus} />
-                </div>
-              </div>
-
               <div className="p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200">
                 <h4 className="font-medium mb-3">Upload Required Documents</h4>
-                {allDocsUploaded ? (
+                {!docsLoading && !docsError && (allDocsUploaded ? (
                   <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">
-                    ✓ All required documents uploaded — you can start a case.
+                    ✓ All required documents uploaded. Uploads and verification are separate.
                   </p>
                 ) : (
                   <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
                     Still missing: {missingDocs.map((m) => m.replace("_", " ")).join(", ")} —
                     required before you can start a case.
                   </p>
-                )}
-                <div className="grid gap-3">
-                  {requiredDocTypes.map((t) => {
-                    const uploaded = uploadedTypes.has(t);
-                    return (
-                      <label
-                        key={t}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer hover:bg-slate-50
-                          ${uploading === t ? "opacity-60 bg-slate-100" : ""}
-                          ${uploaded ? "border-emerald-300 bg-emerald-50/40" : "border-red-200 bg-red-50/30"}`}
-                      >
-                        <div>
-                          <div className="font-medium flex items-center gap-2">
-                            {t.replace("_", " ")}
-                            {uploaded ? (
-                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
-                                ✓ Uploaded
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">
-                                Missing
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {uploaded ? "Tap Replace to change the file" : "PNG, JPG, PDF"}
-                          </div>
-                        </div>
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".png,.jpg,.jpeg,.pdf"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) uploadDoc(t, f);
-                          }}
-                        />
-                        <div className="text-[#004aad] font-medium">
-                          {uploading === t ? "Uploading..." : uploaded ? "Replace" : "Upload"}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+                ))}
+                <div className="grid gap-3">{renderDocumentRows()}</div>
                 <p className="text-xs text-slate-500 mt-4">
                   Documents are manually verified by admin before you can start a case.
                 </p>
@@ -697,6 +617,14 @@ export default function ClientProfileSection({
 
   return (
     <section className="w-full min-h-screen bg-slate-50">
+      <fieldset disabled={saving} className="contents">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 space-y-2" role="status">
+        <p>{dirty ? "You have unsaved changes. " : ""}You can save now and finish later. All required details and identity documents are still needed before starting a case.</p>
+        {!!progress.missing.length && <p>Details still needed: {progress.missing.join(", ")}.</p>}
+        {!form.documentsCompleted && <p>Required identity documents: CNIC front, CNIC back and address proof. Uploading a document does not mean it has been verified.</p>}
+        {docsError && <p role="alert">We couldn’t load your documents. <button type="button" onClick={loadDocs} className="min-h-[44px] font-semibold text-[#004aad] underline">Try again</button></p>}
+        {msg.includes("couldn’t load your profile") && <button type="button" onClick={loadProfile} className="min-h-[44px] font-semibold text-[#004aad] underline">Try again</button>}
+      </div>
       {/* Mobile View */}
       <div className="md:hidden">
         <div className="p-5 pb-32">
@@ -710,7 +638,7 @@ export default function ClientProfileSection({
             </div>
             <button
               onClick={() => setViewMode(!viewMode)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+              className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-medium transition ${
                 viewMode
                   ? "bg-[#004aad] text-white shadow-md"
                   : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
@@ -739,11 +667,11 @@ export default function ClientProfileSection({
                   />
                 )}
                 {!viewMode && (
-                  <label className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-white border-2 border-[#004aad] flex items-center justify-center cursor-pointer hover:bg-[#004aad]/10 transition">
+                  <label className="absolute -bottom-2 -right-2 w-11 h-11 rounded-full bg-white border-2 border-[#004aad] flex items-center justify-center cursor-pointer hover:bg-[#004aad]/10 transition focus-within:ring-2 focus-within:ring-blue-600">
                     <Camera size={16} className="text-[#004aad]" />
                     <input
                       type="file"
-                      className="hidden"
+                      className="sr-only" aria-label="Change profile photo"
                       accept=".png,.jpg,.jpeg,.webp"
                       onChange={(e) =>
                         e.target.files?.[0] && uploadAvatar(e.target.files[0])
@@ -803,10 +731,10 @@ export default function ClientProfileSection({
               {renderMobileTabContent()}
               <button
                 type="submit"
-                disabled={saving || completeness !== 100}
+                disabled={saving || loading}
                 className={`w-full py-3.5 rounded-2xl font-semibold transition flex items-center justify-center gap-2
                   ${
-                    saving || completeness !== 100
+                    saving || loading
                       ? "bg-slate-200 text-slate-500 cursor-not-allowed"
                       : "bg-[#004aad] text-white hover:bg-[#003b82] shadow-md"
                   }`}
@@ -891,11 +819,11 @@ export default function ClientProfileSection({
                     className="border-4 border-[#004aad]/20 mx-auto"
                   />
                 )}
-                <label className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-white border-2 border-[#004aad] flex items-center justify-center cursor-pointer hover:bg-[#004aad]/10 transition shadow-sm">
+                <label className="absolute bottom-0 right-0 w-11 h-11 rounded-full bg-white border-2 border-[#004aad] flex items-center justify-center cursor-pointer hover:bg-[#004aad]/10 transition shadow-sm focus-within:ring-2 focus-within:ring-blue-600">
                   <Camera size={18} className="text-[#004aad]" />
                   <input
                     type="file"
-                    className="hidden"
+                    className="sr-only" aria-label="Change profile photo"
                     accept=".png,.jpg,.jpeg,.webp"
                     onChange={(e) =>
                       e.target.files?.[0] && uploadAvatar(e.target.files[0])
@@ -1014,106 +942,28 @@ export default function ClientProfileSection({
 
               <Card title="Verification & Documents" icon={<ShieldCheck size={18} />}>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <div className="text-sm font-medium mb-2">Identity Document</div>
-                      <StatusPill status={form.identityDocStatus} />
-                    </div>
-                    <div className="p-4 bg-slate-50 rounded-xl">
-                      <div className="text-sm font-medium mb-2">Address Proof</div>
-                      <StatusPill status={form.addressProofStatus} />
-                    </div>
-                  </div>
-
                   <div className="mt-4">
                     <h4 className="text-sm font-medium mb-3">Upload Documents</h4>
-                    {!allDocsUploaded && (
+                    {!docsLoading && !docsError && !allDocsUploaded && (
                       <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
                         Still missing: {missingDocs.map((m) => m.replace("_", " ")).join(", ")}
                       </p>
                     )}
-                    <div className="grid gap-3">
-                      {requiredDocTypes.map((t) => {
-                        const uploaded = uploadedTypes.has(t);
-                        return (
-                          <label
-                            key={t}
-                            className={`p-4 rounded-xl border transition-all cursor-pointer hover:border-[#004aad]/50 hover:bg-[#004aad]/5
-                              ${uploading === t ? "opacity-60 bg-slate-100" : ""}
-                              ${uploaded ? "border-emerald-300 bg-emerald-50/40" : "border-red-200 bg-red-50/30"}`}
-                          >
-                            <div className="font-medium flex items-center gap-2">
-                              {t.replace("_", " ")}
-                              {uploaded ? (
-                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
-                                  ✓ Uploaded
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">
-                                  Missing
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-1">
-                              {uploaded ? "Tap to replace the file" : "PNG, JPG, PDF"}
-                            </div>
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept=".png,.jpg,.jpeg,.pdf"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) uploadDoc(t, f);
-                              }}
-                            />
-                            <div className="mt-2 text-xs text-[#004aad] font-medium">
-                              {uploading === t ? "Uploading..." : uploaded ? "Replace" : "Click to upload"}
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    <div className="grid gap-3">{renderDocumentRows()}</div>
                   </div>
                 </div>
               </Card>
             </div>
 
-            {/* Uploaded Files & Save */}
+            {/* Save profile */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Uploaded Documents</h3>
-              {docs.length === 0 ? (
-                <p className="text-slate-500 text-center py-6">No documents uploaded yet.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {docs.map((d) => (
-                    <li
-                      key={d.id}
-                      className="flex justify-between items-center p-4 bg-slate-50 rounded-xl"
-                    >
-                      <div>
-                        <div className="font-medium">
-                          {String(d.doc_type || "").replace("_", " ")}
-                        </div>
-                        <div className="text-xs text-slate-500">{formatStatus(d.status)}</div>
-                      </div>
-                      <AuthedLink
-                        url={d.file_url}
-                        className="px-4 py-2 bg-[#004aad]/10 text-[#004aad] rounded-lg hover:bg-[#004aad]/20 transition"
-                      >
-                        View
-                      </AuthedLink>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
               <div className="mt-8 flex justify-end">
                 <button
                   onClick={saveProfile}
-                  disabled={saving || completeness !== 100}
+                  disabled={saving || loading}
                   className={`px-8 py-3 rounded-xl font-semibold flex items-center gap-2 transition
                     ${
-                      saving || completeness !== 100
+                      saving || loading
                         ? "bg-slate-200 text-slate-500 cursor-not-allowed"
                         : "bg-[#004aad] text-white hover:bg-[#003b82] shadow-md"
                     }`}
@@ -1126,6 +976,7 @@ export default function ClientProfileSection({
           </div>
         </div>
       </div>
+      </fieldset>
     </section>
   );
 }

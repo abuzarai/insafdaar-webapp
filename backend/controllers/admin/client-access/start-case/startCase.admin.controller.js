@@ -1,4 +1,6 @@
 import pool from "../../../../db.js";
+import { matchesAcceptedIntake } from "../../../../utils/intakeProtocol.js";
+import { acceptedIntake, intakeError } from "../../../../services/reviewedIntake.service.js";
 import { sendNotificationEmail } from "../../../../utils/mailer.js";
 import { CASE_STATUS, transitionCaseStatus } from "../../../../utils/caseLifecycle.js";
 import { buildCaseLabel, getLatestInterviewResult, scoreCandidate } from "../../../../utils/interviewMatching.js";
@@ -154,11 +156,18 @@ export async function adminListAssignmentQueue(req, res) {
       LEFT JOIN public.users pa ON pa.id = c.preferred_advocate_id
       LEFT JOIN public.users aa ON aa.id = c.assigned_advocate_id
       LEFT JOIN LATERAL (
-        SELECT i.id, i.transcript, i.analysis, i.completed_at
-        FROM public.case_intake_sessions i
-        WHERE i.case_id = c.id
-        ORDER BY i.completed_at DESC NULLS LAST, i.updated_at DESC NULLS LAST, i.created_at DESC, i.id DESC
-        LIMIT 1
+        SELECT * FROM (
+          SELECT i.id::text AS id, i.transcript, i.analysis, i.completed_at, i.updated_at, i.created_at
+          FROM public.case_intake_sessions i WHERE i.case_id=c.id AND c.intake_protocol='legacy'
+          UNION ALL
+          SELECT r.id::text, NULL::text,
+            r.source_proposal->'analysis' || r.reviewed_data || '{"confidence_score":null}'::jsonb,
+            s.created_at, s.created_at, s.created_at
+          FROM public.case_intake_revisions r JOIN public.case_intake_submissions s
+            ON s.case_id=r.case_id AND s.revision_id=r.id
+          WHERE r.case_id=c.id AND r.id=c.submitted_intake_revision_id AND c.intake_protocol='live_v2'
+        ) intake_result
+        ORDER BY completed_at DESC NULLS LAST, updated_at DESC NULLS LAST, created_at DESC, id DESC LIMIT 1
       ) li ON TRUE
       LEFT JOIN LATERAL (
         SELECT m.id, m.created_at
@@ -173,6 +182,7 @@ export async function adminListAssignmentQueue(req, res) {
         WHERE cm.run_id = mr.id
       ) mc ON TRUE
       WHERE c.status IN ('MATCHING_REVIEW', 'ADVOCATE_ASSIGNED', 'INTAKE_STARTED')
+        AND (c.intake_protocol='legacy' OR c.submitted_intake_revision_id IS NOT NULL)
       ORDER BY c.updated_at DESC, c.id DESC
       `
     );
@@ -223,6 +233,8 @@ export async function adminRunCaseMatching(req, res) {
         c.legal_domain,
         c.preferred_advocate_id,
         c.assigned_advocate_id,
+        c.intake_protocol,
+        c.submitted_intake_revision_id,
         c.status,
         cp.city AS client_city
       FROM public.client_cases c
@@ -241,18 +253,11 @@ export async function adminRunCaseMatching(req, res) {
     const caseRow = caseR.rows[0];
     const alreadyAssigned = Number(caseRow.assigned_advocate_id || 0) > 0;
 
-    const intakeR = await client.query(
-      `
-      SELECT analysis
-      FROM public.case_intake_sessions
-      WHERE case_id = $1
-      ORDER BY updated_at DESC, id DESC
-      LIMIT 1
-      `,
-      [caseId]
-    );
-
-    const intakeAnalysis = intakeR.rows[0]?.analysis || null;
+    const accepted = caseRow.intake_protocol === "live_v2" ? await acceptedIntake(client, caseId) : null;
+    if (caseRow.intake_protocol === "live_v2" && !accepted) throw intakeError(409, "SUBMITTED_INTAKE_REQUIRED");
+    const intakeR = accepted ? null : await client.query(
+      `SELECT analysis FROM public.case_intake_sessions WHERE case_id=$1 ORDER BY updated_at DESC,id DESC LIMIT 1`, [caseId]);
+    const intakeAnalysis = accepted?.analysis || intakeR?.rows[0]?.analysis || null;
     const inferredLegalDomain =
       String(caseRow.legal_domain || "").trim() ||
       String(intakeAnalysis?.legal_domain || intakeAnalysis?.domain || "").trim() ||
@@ -333,6 +338,8 @@ export async function adminRunCaseMatching(req, res) {
           language: caseRow.language || null,
           clientCity: caseRow.client_city || null,
           analysis: intakeAnalysis || null,
+          intakeRevisionId: accepted?.revisionId || null,
+          intakeContentHash: accepted?.contentHash || null,
         }),
       ]
     );
@@ -384,7 +391,7 @@ export async function adminRunCaseMatching(req, res) {
     try {
       await client.query("ROLLBACK");
     } catch {}
-    return res.status(500).json({ error: err.message });
+    return res.status(err.status || 500).json({ error: err.code && err.status ? err.code : "Matching request failed" });
   } finally {
     client.release();
   }
@@ -401,7 +408,7 @@ export async function adminListCaseMatchCandidates(req, res) {
 
     const caseMetaR = await pool.query(
       `
-      SELECT id, title, description
+      SELECT id, title, description, intake_protocol, submitted_intake_revision_id
       FROM public.client_cases
       WHERE id = $1
       LIMIT 1
@@ -414,6 +421,8 @@ export async function adminListCaseMatchCandidates(req, res) {
     }
 
     const caseMeta = caseMetaR.rows[0];
+    const accepted = caseMeta.intake_protocol === "live_v2" ? await acceptedIntake(pool, caseId) : null;
+    if (caseMeta.intake_protocol === "live_v2" && !accepted) return res.status(409).json({ error: "Client-submitted intake required before matching" });
 
     const runR = await pool.query(
       `
@@ -439,6 +448,9 @@ export async function adminListCaseMatchCandidates(req, res) {
     }
 
     const run = runR.rows[0];
+    if (caseMeta.intake_protocol === "live_v2" && !matchesAcceptedIntake(accepted, run.input_snapshot)) {
+      return res.status(409).json({ error: "Matching input changed. Run matching again." });
+    }
 
     const candidatesR = await pool.query(
       `
@@ -507,7 +519,7 @@ export async function adminAssignAdvocateToCase(req, res) {
     // 1) load case
     const c = await dbClient.query(
       `
-      SELECT id, user_id, assigned_advocate_id, preferred_advocate_id
+      SELECT id, user_id, assigned_advocate_id, preferred_advocate_id, intake_protocol, submitted_intake_revision_id
       FROM public.client_cases
       WHERE id=$1
       FOR UPDATE
@@ -520,6 +532,10 @@ export async function adminAssignAdvocateToCase(req, res) {
       return res.status(404).json({ error: "Case not found" });
     }
 
+    if (c.rows[0].intake_protocol === "live_v2" && !(await acceptedIntake(dbClient, Number(caseId)))) {
+      await dbClient.query("ROLLBACK");
+      return res.status(409).json({ error: "Client-submitted intake required before assignment" });
+    }
     const clientUserId = c.rows[0].user_id;
     const alreadyAssigned = c.rows[0].assigned_advocate_id;
     const preferredAdvocateId = c.rows[0].preferred_advocate_id;

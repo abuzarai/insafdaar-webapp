@@ -1,0 +1,24 @@
+.transcript-panel { margin: 1rem 0; padding: 1rem; border: 1px solid #cbd5e1; border-radius: .75rem; background: #f8fafc; color: #0f172a; }
+.transcript-panel > p { margin: .5rem 0; font-size: .875rem; }
+.transcript-panel button { margin: .4rem; padding: .5rem .75rem; border: 1px solid #64748b; border-radius: .5rem; }
+.transcript-text { max-height: 22rem; overflow-y: auto; overflow-wrap: anywhere; }
+.transcript-turn { padding: .75rem 0; border-bottom: 1px solid #e2e8f0; }
+.transcript-turn p { white-space: pre-wrap; margin: .25rem 0; }
+.review-first .transcript-live { width: 100%; text-align: start; }
+.review-first .transcript-live-notice, .review-first .transcript-live-state { margin: .65rem 1.25rem; font-size: .75rem; color: #64748b; }
+.review-first .transcript-live .transcript-text { height: clamp(18rem, 42vh, 27rem); max-height: 27rem; overflow-y: auto; padding: 1.25rem 1.5rem .5rem; border-block: 1px solid #edf0f5; background: #fff; overscroll-behavior: contain; }
+.review-first .transcript-live .transcript-turn { max-width: 89%; padding: 0; margin-bottom: 1.5rem; border: 0; font-size: .875rem; line-height: 1.9; }
+.review-first .transcript-live .transcript-turn strong { display: block; font-size: .7rem; color: #6b7a8d; font-weight: 600; margin-bottom: .4rem; }
+.review-first .transcript-live .transcript-turn > span { font-size: .7rem; color: #64748b; }
+.review-first .transcript-live .transcript-turn-user { margin-inline-start: auto; max-width: 83%; background: #edf4ff; border: 1px solid #e1ebfb; border-radius: .65rem .15rem .65rem .65rem; padding: .75rem 1rem; }
+.review-first .transcript-live .transcript-turn-user strong { color: #426899; }
+.review-first .transcript-live .transcript-turn p { unicode-bidi: plaintext; line-height: 1.9; }
+.review-first .transcript-live .transcript-turn p:dir(rtl) { font-family: "Noto Naskh Arabic", "Noto Sans Arabic", "Segoe UI", serif; font-size: 1.1rem; line-height: 2; }
+.review-first .transcript-live .transcript-save-feedback { margin: .75rem 1.25rem; font-size: .75rem; }
+.transcript-save-feedback button { margin-top: .5rem; padding: .5rem .75rem; border: 1px solid #64748b; border-radius: .5rem; }
+@media (max-width: 640px) {
+  .review-first .transcript-live .transcript-text { padding: 1rem .85rem .5rem; }
+  .review-first .transcript-live .transcript-turn { max-width: 95%; }
+  .review-first .transcript-live .transcript-turn-user { max-width: 90%; }
+}
+@media (prefers-reduced-motion: reduce) { .review-first .transcript-text { scroll-behavior: auto; } }

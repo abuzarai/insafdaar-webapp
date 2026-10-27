@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../config";
+import { hasVoiceIntent, withVoiceIntent } from "../utils/voiceEntry";
 
 export default function VerifyOtpPage() {
   const navigate = useNavigate();
+  const voiceIntent = hasVoiceIntent(useLocation().search);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [msg, setMsg] = useState("");
@@ -39,7 +41,7 @@ export default function VerifyOtpPage() {
       localStorage.removeItem("pending_email");
       setMsg("Email verified! Redirecting to login...");
 
-      setTimeout(() => navigate("/login"), 900);
+      setTimeout(() => navigate(withVoiceIntent("/login", voiceIntent)), 900);
     } catch (err: any) {
       setMsg(err?.response?.data?.error || "OTP verification failed.");
     } finally {

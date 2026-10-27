@@ -15,8 +15,15 @@ describe("auth utilities", () => {
     expect(isLoggedIn()).toBe(false);
   });
 
-  test("isLoggedIn is true for a real-length token", () => {
+  test("isLoggedIn is false for a long junk token", () => {
     localStorage.setItem("token", "eyJhbGciOiJIUzI1NiJ9.0123456789abcdefghijklmnopqrstuvwxyz");
+    expect(isLoggedIn()).toBe(false);
+  });
+
+  test("isLoggedIn requires an unexpired supported session role", () => {
+    const payload = btoa(JSON.stringify({ role: "client", exp: Date.now() / 1000 + 3600 }));
+    localStorage.setItem("token", `offline.${payload}.fixture`);
+    localStorage.setItem("user", JSON.stringify({ role: "client" }));
     expect(isLoggedIn()).toBe(true);
   });
 });

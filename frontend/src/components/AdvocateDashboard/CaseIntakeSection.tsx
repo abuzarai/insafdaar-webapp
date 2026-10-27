@@ -874,7 +874,8 @@ export default function AdvocateCaseIntakeSection() {
                   <div className="lg:col-span-7 space-y-4">
                     <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="text-sm font-bold text-slate-900">AI Interview Summary</div>
+                        <div className="text-sm font-bold text-slate-900">{full?.interview?.meta?.completionSource === "client_reviewed_revision" ? "Submitted intake snapshot" : "AI Interview Summary"}</div>
+                        {full?.interview?.meta?.completionSource === "client_reviewed_revision" && <p className="text-xs text-amber-800">Client-reviewed facts; legal labels, ADR, urgency and title suggestions are not legal certification. Audio completeness is unproven.</p>}
                         {full?.interview?.meta?.completedAt ? (
                           <div className="text-xs text-slate-500">Completed: {formatDT(full.interview.meta.completedAt)}</div>
                         ) : null}

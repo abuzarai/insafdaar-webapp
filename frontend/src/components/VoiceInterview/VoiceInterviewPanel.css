@@ -134,3 +134,137 @@
     background-color: #334155;
     border-radius: 10px;
 }
+
+/* Gemini Live retains the original voice-first shell, without legacy VAD,
+   recording or invented speaking/transcript states. */
+.reviewed-voice-session {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    padding: 40px;
+    color: #e2e8f0;
+    text-align: center;
+    overflow: hidden;
+    font-family: Inter, sans-serif;
+}
+.reviewed-voice-session h3 { margin: 0; font-size: 24px; font-weight: 600; color: #fff; }
+.reviewed-voice-session header p { margin: 8px 0; color: #94a3b8; font-size: 14px; }
+.reviewed-voice-session .voice-runtime-label { color: #94a3b8; font-size: 12px; }
+.reviewed-voice-session .voice-session-status { min-height: 28px; margin: 20px 0; font-size: 18px; overflow-wrap: anywhere; }
+.reviewed-voice-session .voice-consent { display: block; margin: 16px 0; font-size: 14px; }
+.reviewed-voice-session .voice-session-controls { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.reviewed-voice-session .voice-session-controls button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 14px 28px; border-radius: 30px; font-size: 16px; font-weight: 600;
+    border: 1px solid #64748b; color: #fff; background: #334155;
+}
+.reviewed-voice-session .voice-session-controls .voice-start { background: linear-gradient(135deg, #3b82f6, #2563eb); border-color: #3b82f6; }
+.reviewed-voice-session .voice-session-controls .voice-stop { color: #fca5a5; border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+.reviewed-voice-session button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+.reviewed-voice-session .voice-session-note { margin-top: 20px; color: #94a3b8; font-size: 13px; }
+/* Connected means transport connected, not that the assistant is speaking. */
+.voice-orb.state-connected { background: #1e3a8a; box-shadow: 0 0 30px rgba(59, 130, 246, 0.4); animation: voice-connected-breathe 3s infinite ease-in-out; }
+.voice-orb.state-connected svg { color: #93c5fd; }
+@keyframes voice-connected-breathe { 50% { transform: scale(1.05); } }
+@media (max-width: 640px) { .reviewed-voice-session { padding: 24px 16px; } }
+@media (prefers-reduced-motion: reduce) {
+    .reviewed-voice-session *, .reviewed-voice-session *::before, .reviewed-voice-session *::after {
+        animation: none !important; transition: none !important;
+    }
+}
+
+/* Review and recovery are separate from the live media shell. */
+.reviewed-intake .intake-status { color: #334155; overflow-wrap: anywhere; }
+.reviewed-intake .intake-safety-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
+.reviewed-intake .intake-safety-controls .voice-stop { display: inline-flex; align-items: center; gap: 8px; color: #b91c1c; border-color: #ef4444; }
+.reviewed-intake .intake-recovery { padding: 12px; border: 1px solid #d97706; border-radius: 12px; background: #fffbeb; }
+.reviewed-intake .intake-confirm { color: #fff; background: #2563eb; border-color: #2563eb; font-weight: 600; }
+.reviewed-intake .intake-review textarea, .reviewed-intake .intake-review select { border-radius: 8px; color: #0f172a; background: #fff; }
+.reviewed-intake .intake-review label { font-size: 14px; color: #334155; }
+.reviewed-intake .intake-review details { font-size: 12px; color: #64748b; }
+.reviewed-intake button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+
+/* Focused intake uses the dashboard's existing blue, slate and inherited type. */
+.review-first { color: #334155; padding: clamp(1.25rem, 3vw, 2.5rem); }
+.review-first h3 { color: #0f172a; font-size: clamp(1.4rem, 3vw, 1.85rem); font-weight: 650; line-height: 1.35; margin: 1.75rem 0 1rem; }
+.review-first h4 { color: #0f172a; font-weight: 600; }
+.review-first p { line-height: 1.75; }
+.review-first button { border: 1px solid #cbd5e1; border-radius: .65rem; padding: .7rem 1rem; min-height: 44px; background: white; font-size: .875rem; font-weight: 600; }
+.review-first button:disabled { opacity: .5; cursor: not-allowed; }
+.review-first :focus-visible { outline: 3px solid #004aad; outline-offset: 3px; }
+.review-first .intake-confirm, .review-first .voice-start { background: #004aad; color: white; border-color: #004aad; }
+.review-first .intake-confirm:hover:not(:disabled), .review-first .voice-start:hover:not(:disabled) { background: #003b82; }
+.review-first .intake-stepper { display: flex; flex-wrap: wrap; gap: 1.25rem; padding: 0 0 1rem; border-bottom: 1px solid #e2e8f0; list-style: none; }
+.review-first .intake-stepper li { display: flex; align-items: center; gap: .4rem; color: #64748b; font-size: .75rem; }
+.review-first .intake-stepper li > span { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: #f1f5f9; font-size: .65rem; }
+.review-first .intake-stepper .current { color: #004aad; font-weight: 650; }
+.review-first .intake-stepper .current > span { color: white; background: #004aad; }
+.review-first .intake-workspace { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 1.5rem; }
+.review-first .intake-main { min-width: 0; }
+.review-first .reviewed-voice-session { background: white; color: #334155; border: 1px solid #dbe3ed; border-radius: .75rem; font-family: inherit; padding: 0; text-align: start; overflow: clip; min-width: 0; }
+.review-first .conversation-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 1rem 1.25rem; border-bottom: 1px solid #e9edf3; }
+.review-first .assistant-identity { display: flex; align-items: center; gap: .65rem; font-size: .8rem; }
+.review-first .assistant-emblem { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #d5e3f7; border-radius: 9px; background: #f1f6ff; color: #004aad; font-weight: 700; flex: none; }
+.review-first .connection-state { color: #596779; font-size: .7rem; }
+.review-first .interview-welcome { max-width: 28rem; margin: 1.75rem auto 1rem; padding: 0 1.25rem; }
+.review-first .interview-welcome > p { color: #64748b; font-size: .875rem; }
+.review-first .reviewed-voice-session > p:not(.voice-consent) { margin: 1rem 1.25rem; font-size: .875rem; }
+.review-first .reviewed-voice-session > .voice-start { margin: 0 1.25rem 1.25rem; }
+.review-first .conversation-controls { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .85rem 1.1rem max(.85rem, env(safe-area-inset-bottom)); border-top: 1px solid #e5eaf2; background: #fcfdff; }
+.review-first .conversation-controls:empty { display: none; }
+.review-first .microphone-state { display: inline-flex; align-items: center; gap: .4rem; margin-inline-end: auto; color: #596779; font-size: .75rem; }
+.review-first .conversation-controls .intake-safety-controls { display: contents; }
+.review-first .conversation-controls .intake-safety-controls > span { flex-basis: 100%; font-size: .7rem; }
+@media (max-width: 640px) {
+    .review-first { padding: 1rem; }
+    .review-first .conversation-header { padding: .85rem; }
+    .review-first .conversation-controls { padding-inline: .75rem; }
+    .review-first .microphone-state { flex-basis: 100%; }
+    .review-first .intake-stepper { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+}
+.review-first .voice-consent { display: block; text-align: start; margin: 1rem 1.25rem; padding: .85rem; border: 1px solid #e4eaf2; border-radius: .5rem; background: #f7f9fc; font-size: .75rem; }
+.review-first .voice-consent input { margin-top: .3rem; accent-color: #004aad; flex-shrink: 0; width: 18px; height: 18px; }
+.review-first .intake-restart { margin-top: .75rem; }
+.review-first .intake-interview-limit { margin-top: 1rem; color: #64748b; font-size: .875rem; }
+.review-first .intake-restart-overlay { position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 1rem; background: #0f172a73; }
+.review-first .intake-restart-dialog { width: min(100%, 32rem); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 20px 40px #0f172a26; }
+.review-first .intake-restart-dialog h3 { margin: 0 0 1rem; font-size: 1.25rem; }
+.review-first .intake-restart-dialog .voice-consent { margin: 1rem 0; }
+.review-first .intake-status:not(:empty) { margin: 1rem 0; font-size: .875rem; }
+.review-first .intake-safety-controls { border-top: 1px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem; }
+.review-first .intake-safety-controls > span { flex: 1 1 240px; }
+.review-first .intake-review-help { color: #64748b; font-size: .875rem; margin-bottom: 1.5rem; }
+.intake-section-heading, .intake-detail dt { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.review-first .intake-edit-link { display: inline-flex; align-items: center; gap: .35rem; color: #004aad; border-color: transparent; background: transparent; padding: .35rem .5rem; font-size: .8rem; flex-shrink: 0; }
+.review-first .intake-edit-link:hover { background: #eff6ff; }
+.intake-summary, .intake-facts dd { white-space: pre-wrap; overflow-wrap: anywhere; }
+.intake-summary { font-size: 1.05rem; line-height: 1.9; padding: .75rem 0 1.5rem; }
+.intake-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 2rem; margin: .75rem 0 1.5rem; }
+.intake-facts > div { min-width: 0; border-top: 1px solid #e2e8f0; padding: .75rem 0; }
+.intake-facts dt { font-size: .8rem; color: #64748b; }
+.intake-facts dd { margin: .3rem 0; font-size: .925rem; line-height: 1.7; }
+.intake-facts ul { list-style: disc; padding-inline-start: 1.25rem; }
+.review-first .intake-additional { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .75rem; padding: 1rem; margin: .5rem 0 1.5rem; color: #475569; font-size: .875rem; }
+.review-first summary { min-height: 36px; cursor: pointer; padding: .25rem 0; font-weight: 600; }
+.review-first .intake-additional > p { margin: .75rem 0; }
+.intake-review-actions { border-top: 1px solid #e2e8f0; padding: 1.25rem 0; margin-top: 1.5rem; }
+.intake-review-actions > p { max-width: 40rem; font-size: .875rem; margin-bottom: 1rem; }
+.intake-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; }
+.intake-editor label { display: block; margin: 1rem 0; }
+.intake-editor textarea, .intake-editor select { display: block; width: 100%; border: 1px solid #cbd5e1; padding: .75rem; margin-top: .5rem; font: inherit; }
+.intake-editor textarea { min-height: 110px; resize: vertical; }
+.intake-editor fieldset { border-top: 1px solid #e2e8f0; margin-top: 1.5rem; }
+.intake-editor legend { font-size: .875rem; color: #64748b; }
+.intake-preparing { padding: 3rem 1rem; text-align: center; }
+.intake-preparing p { max-width: 30rem; margin: 0 auto; }
+.intake-spinner { color: #004aad; width: 40px; height: 40px; margin: 0 auto 1.5rem; animation: intake-spin 1.5s linear infinite; }
+@keyframes intake-spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+    .intake-stepper { gap: .5rem; }
+    .intake-stepper li { font-size: .7rem; gap: .35rem; align-items: flex-start; }
+    .intake-stepper li > span { width: 1.5rem; height: 1.5rem; }
+    .intake-facts { grid-template-columns: minmax(0, 1fr); }
+    .intake-actions { flex-direction: column; }
+    .intake-actions button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .review-first *, .review-first *::before, .review-first *::after { animation: none !important; transition: none !important; } }

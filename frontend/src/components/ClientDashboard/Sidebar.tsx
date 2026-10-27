@@ -1,16 +1,15 @@
 // Sidebar.tsx
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useModalFocus } from "../common/modalFocus";
 import {
   LayoutDashboard,
   FilePlus2,
   Bell,
   User,
-  CreditCard,
   MessageSquare,
   Menu,
   X,
   BadgeCheck,
-  FileSignature,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config"; // adjust path if needed
 import UserAvatar from "../common/UserAvatar";
@@ -42,6 +41,7 @@ interface SidebarProps {
   profileLoading: boolean;
   completeness: number;
   canStartCase: boolean;
+  hasUnreadNotifications?: boolean;
 }
 
 export default function Sidebar({
@@ -50,9 +50,17 @@ export default function Sidebar({
   profile,
   profileLoading,
   completeness,
-  canStartCase,
+  canStartCase, hasUnreadNotifications,
 }: SidebarProps) {
   const [open, setOpen] = useState(false);
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  const close = useCallback(() => setOpen(false), []);
+  const menuRef = useModalFocus<HTMLElement>(mobile && open, close);
+  useEffect(() => {
+    const resize = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   // ✅ Build correct avatar URL (supports "/uploads/..." from backend)
   const avatar =
@@ -72,18 +80,14 @@ export default function Sidebar({
 
   const isVerified = profile?.identityDocStatus === "VERIFIED";
 
-  // ✅ Profile placed directly under progress bar (top of menu)
   const sections: { name: SectionName; icon: React.ReactNode; locked?: boolean }[] =
     useMemo(
       () => [
-        { name: "Profile", icon: <User size={18} /> },
         { name: "My Cases", icon: <LayoutDashboard size={18} /> },
         { name: "Start Case", icon: <FilePlus2 size={18} />, locked: !canStartCase },
-        { name: "Case Details", icon: <LayoutDashboard size={18} /> },
+        { name: "Profile", icon: <User size={18} /> },
         { name: "Notifications", icon: <Bell size={18} /> },
-        { name: "Billing", icon: <CreditCard size={18} /> },
         { name: "Feedback", icon: <MessageSquare size={18} /> },
-        { name: "Contract", icon: <FileSignature size={18} /> },
       ],
       [canStartCase]
     );
@@ -102,9 +106,10 @@ export default function Sidebar({
     <>
       {/* 📱 Mobile Toggle Button */}
       <button
-        className="fixed top-4 left-4 z-50 md:hidden p-2 bg-[#004aad] text-white rounded-md shadow-md"
+        className="fixed top-3 left-4 z-30 md:hidden p-3 bg-[#004aad] text-white rounded-xl shadow-sm"
         onClick={() => setOpen(!open)}
         aria-label="Toggle sidebar"
+        aria-controls="client-navigation" aria-expanded={mobile && open}
       >
         {open ? <X size={22} /> : <Menu size={22} />}
       </button>
@@ -118,15 +123,29 @@ export default function Sidebar({
       />
 
       <aside
+        id="client-navigation" ref={menuRef}
+        role={mobile && open ? "dialog" : undefined} aria-modal={mobile && open ? true : undefined}
+        aria-label="Main navigation" aria-hidden={mobile && !open ? true : undefined}
+        inert={mobile && !open}
+        onKeyDown={event => {
+          if (!mobile || !open || event.key !== "Tab") return;
+          const items = menuRef.current?.querySelectorAll<HTMLElement>("button, [tabindex='0']");
+          if (!items?.length) return;
+          const first = items[0], last = items[items.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }}
         className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#00142e] text-white transform
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-          transition-transform duration-300 ease-in-out flex flex-col justify-between shadow-xl`}
+          transition-transform duration-300 ease-in-out flex flex-col justify-between shadow-xl overflow-y-auto`}
       >
         <div>
+          <button type="button" onClick={close} aria-label="Close navigation" className="md:hidden absolute right-2 top-2 rounded-lg p-3 hover:bg-white/10"><X size={20} /></button>
           {/* 👤 Profile Box */}
           <div
             className="flex flex-col items-center py-8 border-b border-white/10 cursor-pointer"
-            onClick={() => handleNav("Profile")}
+            onClick={() => handleNav("Profile")} role="button" tabIndex={0} aria-label="Open your profile"
+            onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleNav("Profile"); } }}
           >
             <UserAvatar
               name={displayName}
@@ -179,6 +198,9 @@ export default function Sidebar({
                 <button
                   key={section.name}
                   type="button"
+                  aria-current={active === section.name ? "page" : undefined}
+                  aria-label={section.name === "Notifications" ? "Notifications" : undefined}
+                  aria-describedby={section.name === "Notifications" && hasUnreadNotifications ? "client-unread-notifications" : undefined}
                   onClick={() => handleNav(section.name, locked)}
                   className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-lg transition-all text-sm
                     ${
@@ -190,7 +212,8 @@ export default function Sidebar({
                   title={locked ? "Complete profile to start case" : ""}
                 >
                   {section.icon}
-                  {section.name}
+                  {section.name === "Start Case" ? "Start a Case" : section.name}
+                  {section.name === "Notifications" && hasUnreadNotifications && <span id="client-unread-notifications" className="ml-auto text-xs text-amber-300">New<span className="sr-only"> unread notifications</span></span>}
                   {locked ? (
                     <span className="ml-auto text-[10px] text-amber-300">
                       LOCKED

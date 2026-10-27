@@ -1,28 +1,18 @@
 // src/routes/RequireAuth.tsx
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-
-function getAuth() {
-  const token = localStorage.getItem("token");
-  let role = "";
-  try {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    role = String(user?.role || "").toUpperCase();
-  } catch {
-    // malformed stored user; treat as logged out with no role
-  }
-  return { token, role };
-}
+import { dashboardForRole, getSessionRole } from "../utils/auth";
+import { isVoiceEntry, withVoiceIntent } from "../utils/voiceEntry";
 
 export default function RequireAuth({ roles }: { roles?: string[] }) {
-  const { token, role } = getAuth();
+  const role = getSessionRole();
   const location = useLocation();
 
-  if (!token || token.length < 10) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!role) {
+    return <Navigate to={withVoiceIntent("/login", isVoiceEntry(location.pathname, location.search))} replace state={{ from: location.pathname }} />;
   }
 
   if (roles && !roles.includes(role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={dashboardForRole(role)} replace />;
   }
 
   return <Outlet />;

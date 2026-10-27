@@ -1,26 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
-import {
-  Search,
-  Filter,
-  CalendarDays,
-  Bell,
-  ChevronRight,
-  Video,
-  User,
-  Briefcase,
-  CreditCard,
-  Gavel,
-  BadgeCheck,
-  Clock,
-  XCircle,
-  ExternalLink,
-  FileText,
-  Trash2,
-} from "lucide-react";
+import { Search, Filter, ChevronRight, Briefcase, ExternalLink, FileText, Trash2, Video } from "lucide-react";
+import { formatStatus } from "../../common/formatStatus";
 import { safeExternalHref } from "../../../utils/url";
 import { API_BASE_URL } from "../../../config";
 import { useActionDialogs } from "../../common/ActionDialog";
 import { Badge } from "../../common/Badge";
+import { caseNextStep } from "../utils/caseNextStep";
 
 /* ================= Types ================= */
 
@@ -66,140 +51,19 @@ export type CaseSummary = {
   alertsCount?: number;
 };
 
-type FilterValue = "All" | CaseStatus;
-
 type Props = {
   onOpenCase: (c: CaseSummary) => void;
+  onContinueCase?: (c: CaseSummary) => void;
+  onStartCase?: () => void;
 };
 
 /* ================= Helpers ================= */
-
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-
-function paymentBadge(v: VoucherStatus, hasPdf?: boolean | null) {
-  if (v === "VERIFIED")
-    return (
-      <Badge variant="green">
-        <BadgeCheck size={14} /> Verified
-      </Badge>
-    );
-
-  if (v === "GENERATED")
-    return (
-      <Badge variant="amber">
-        <Clock size={14} /> {hasPdf ? "Voucher Ready" : "Voucher Generated"}
-      </Badge>
-    );
-
-  if (v === "REJECTED")
-    return (
-      <Badge variant="red">
-        <XCircle size={14} /> Rejected
-      </Badge>
-    );
-
-  return (
-    <Badge variant="gray">
-      <CreditCard size={14} /> Not Generated
-    </Badge>
-  );
-}
-
-function statusBadge(s: CaseStatus) {
-  if (s === "Ongoing") return <Badge variant="blue">Ongoing</Badge>;
-  if (s === "Pending") return <Badge variant="amber">Pending</Badge>;
-  return <Badge variant="green">Closed</Badge>;
-}
-
-function meetingBadge(meeting?: CaseSummary["nextMeeting"]) {
-  if (meeting?.status && String(meeting.status).toUpperCase() === "APPROVED") {
-    return (
-      <Badge variant="green">
-        <Video size={14} /> Meeting Approved
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="gray">
-      <Video size={14} /> No Meeting
-    </Badge>
-  );
-}
-
-function money(n?: number | null) {
-  if (n === undefined || n === null || Number.isNaN(n)) return "—";
-  return `Rs. ${Number(n).toLocaleString()}`;
-}
-
-function fmtDate(d?: string | null) {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleDateString();
-  } catch {
-    return d;
-  }
-}
-
-function fmtTime(d?: string | null) {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return d;
-  }
-}
 
 function mapCaseStatus(dbStatus: string | null | undefined): CaseStatus {
   const s = String(dbStatus || "").toUpperCase();
   if (s === "CLOSED" || s === "RESOLVED") return "Closed";
   if (s === "DRAFT" || s === "PENDING" || s === "INTAKE_STARTED") return "Pending";
   return "Ongoing";
-}
-
-function lifecycleBadge(status?: string) {
-  const s = String(status || "").toUpperCase();
-  if (!s) return null;
-
-  if (s === "CONTRACT_PENDING_SIGNATURES") {
-    return (
-      <Badge variant="amber">
-        <FileText size={14} /> Contract Signatures Pending
-      </Badge>
-    );
-  }
-  if (s === "CONTRACT_PENDING_ADMIN_APPROVAL") {
-    return (
-      <Badge variant="amber">
-        <Clock size={14} /> Contract Under Admin Review
-      </Badge>
-    );
-  }
-  if (s === "CASE_ACTIVE") {
-    return (
-      <Badge variant="green">
-        <BadgeCheck size={14} /> Case Active
-      </Badge>
-    );
-  }
-  if (s === "ADVOCATE_ASSIGNED") {
-    return (
-      <Badge variant="blue">
-        <Briefcase size={14} /> Advocate Assigned
-      </Badge>
-    );
-  }
-  if (s === "MATCHING_REVIEW") {
-    return (
-      <Badge variant="amber">
-        <Filter size={14} /> Matching Review
-      </Badge>
-    );
-  }
-
-  return null;
 }
 
 function toAbsoluteUrlMaybe(url?: string | null) {
@@ -267,9 +131,9 @@ function getAuthToken(): string | null {
 
 /* ================= Component ================= */
 
-export default function MyCasesSection({ onOpenCase }: Props) {
+export default function MyCasesSection({ onOpenCase, onContinueCase, onStartCase }: Props) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterValue>("All");
+  const [filter, setFilter] = useState("All");
 
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -357,8 +221,7 @@ export default function MyCasesSection({ onOpenCase }: Props) {
         });
 
         if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(txt || `Failed to load cases (${res.status})`);
+          throw new Error("We couldn’t load your cases. Please try again.");
         }
 
         const data = await res.json();
@@ -406,7 +269,7 @@ export default function MyCasesSection({ onOpenCase }: Props) {
 
         if (alive) setCases(merged);
       } catch (e: any) {
-        if (alive) setError(e?.message || "Failed to load cases");
+        if (alive) setError(getAuthToken() ? "We couldn’t load your cases. Please try again." : "Please sign in again to view your cases.");
       } finally {
         if (alive) setLoading(false);
       }
@@ -418,10 +281,12 @@ export default function MyCasesSection({ onOpenCase }: Props) {
     };
   }, [CASES_URL, APPROVED_MEETINGS_URL, reloadTick]);
 
+  const recordedStages = Array.from(new Set(cases.map((c) => c.lifecycleStatus).filter((stage): stage is string => !!stage)));
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return cases
-      .filter((c) => (filter === "All" ? true : c.status === filter))
+      .filter((c) => (filter === "All" ? true : c.lifecycleStatus === filter))
       .filter((c) => {
         if (!q) return true;
         return (
@@ -436,40 +301,14 @@ export default function MyCasesSection({ onOpenCase }: Props) {
 
   const open = (c: CaseSummary) => onOpenCase(c);
 
-  const onCardKeyDown = (e: React.KeyboardEvent, c: CaseSummary) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      open(c);
-    }
-  };
-
   return (
     <section className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-[#004aad] border-b pb-2">My Cases</h1>
           <p className="text-sm text-slate-600 mt-2">
-            Voucher + Approved Meeting details are visible here. Court/Hearing is placeholder for now.
+            All your matters, including drafts. Open a case for its details, billing and contract.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition text-sm font-semibold"
-            title="Calendar (placeholder)"
-          >
-            <CalendarDays size={16} className="text-[#004aad]" />
-            Calendar
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition text-sm font-semibold"
-            title="Alerts (placeholder)"
-          >
-            <Bell size={16} className="text-[#004aad]" />
-            Alerts
-          </button>
         </div>
       </div>
 
@@ -481,37 +320,38 @@ export default function MyCasesSection({ onOpenCase }: Props) {
 
       {!loading && error && (
         <div className="bg-white border border-red-200 rounded-2xl p-6 shadow-sm text-red-700 whitespace-pre-wrap">
-          {error}
+          <p role="alert">{error}</p>
+          {getAuthToken() ? <button type="button" onClick={() => setReloadTick(n => n + 1)} className="mt-3 min-h-[44px] font-semibold text-[#004aad] underline">Try again</button> : <a href="/login" className="inline-flex items-center mt-3 min-h-[44px] font-semibold text-[#004aad] underline">Sign in</a>}
         </div>
       )}
 
       {!loading && !error && (
         <>
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
+          {cases.length > 0 && <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 bg-slate-50">
               <Search size={16} className="text-slate-500" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by Case ID, Title, Client, Advocate..."
-                className="bg-transparent outline-none w-full text-sm text-slate-800"
+                aria-label="Search cases"
+                placeholder="Search by case or lawyer"
+                className="min-h-[44px] bg-transparent outline-none w-full text-sm text-slate-800"
               />
             </div>
 
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold">
+            <div className="inline-flex min-h-[44px] items-center gap-2 px-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold">
               <Filter size={16} className="text-[#004aad]" />
               <select
+                aria-label="Filter by recorded stage"
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as FilterValue)}
-                className="outline-none bg-transparent"
+                onChange={(e) => setFilter(e.target.value)}
+                className="min-h-[44px] outline-none bg-transparent"
               >
                 <option value="All">All</option>
-                <option value="Ongoing">Ongoing</option>
-                <option value="Pending">Pending</option>
-                <option value="Closed">Closed</option>
+                {recordedStages.map((stage) => <option key={stage} value={stage}>{formatStatus(stage)}</option>)}
               </select>
             </div>
-          </div>
+          </div>}
 
           <div className="grid lg:grid-cols-2 gap-4">
             {filtered.map((c) => {
@@ -519,212 +359,65 @@ export default function MyCasesSection({ onOpenCase }: Props) {
               const voucher = c.payments;
 
               const voucherPdf = toAbsoluteUrlMaybe(voucher.voucherPdfUrl);
-              const showVoucherDetails =
-                voucher.voucherStatus !== "NOT_GENERATED" ||
-                Boolean(voucher.voucherId) ||
-                Boolean(voucher.amount) ||
-                Boolean(voucher.dueDate) ||
-                Boolean(voucherPdf);
-
               return (
-                <div
+                <article
                   key={c.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => open(c)}
-                  onKeyDown={(e) => onCardKeyDown(e, c)}
-                  className="text-left bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-slate-300 transition focus:outline-none focus:ring-2 focus:ring-[#004aad]/30"
+                  aria-label={`${c.id}: ${c.title}`}
+                  className="text-left bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs text-slate-500">{c.id}</div>
-                      <div className="text-lg font-bold text-slate-900 mt-1 truncate">{c.title}</div>
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        {statusBadge(c.status)}
-                        {lifecycleBadge(c.lifecycleStatus)}
-                        {paymentBadge(voucher.voucherStatus, Boolean(voucherPdf))}
-                        {meetingBadge(meeting)}
-                      </div>
-                    </div>
-                    <ChevronRight className="text-slate-300 mt-1" />
+                  <div className="text-xs text-slate-500">{c.id}</div>
+                  <h2 className="text-lg font-bold text-slate-900 mt-1">{c.title}</h2>
+                  <div className="mt-2">
+                    <Badge variant="blue">{c.lifecycleStatus ? formatStatus(c.lifecycleStatus) : "Stage not recorded"}</Badge>
                   </div>
-
-                  <div className="mt-4 grid md:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl border border-slate-200 p-3 bg-slate-50">
-                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                        <User size={14} className="text-[#004aad]" /> Client
-                      </div>
-                      <div className="text-slate-800 mt-1">{c.client.name}</div>
-                      <div className="text-xs text-slate-600">{c.client.city || "—"}</div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3 bg-slate-50">
-                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                        <Briefcase size={14} className="text-[#004aad]" /> Advocate
-                      </div>
-                      <div className="text-slate-800 mt-1">
-                        {c.advocate.assigned ? c.advocate.name : "Not assigned"}
-                      </div>
-                      <div className="text-xs text-slate-600">{c.advocate.assigned ? "Assigned" : "Admin will assign"}</div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3 bg-white">
-                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                        <Gavel size={14} className="text-[#004aad]" /> Court / Hearing
-                      </div>
-                      <div className="text-slate-800 mt-1">—</div>
-                      <div className="text-xs text-slate-600">Will appear here later (backend pending)</div>
-                    </div>
-
-                    {/* Voucher Details (with PDF open link when available) */}
-                    <div className="rounded-xl border border-slate-200 p-3 bg-white">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                          <CreditCard size={14} className="text-[#004aad]" /> Voucher
-                        </div>
-
-                        {voucherPdf ? (
-                          <a
-                            href={voucherPdf}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#004aad] text-white text-xs font-semibold hover:bg-[#003b82] transition"
-                            title="Open Voucher PDF"
-                          >
-                            <FileText size={14} />
-                            Open PDF
-                            <ExternalLink size={14} />
-                          </a>
-                        ) : null}
-                      </div>
-
-                      <div className="text-slate-800 mt-2">
-                        {showVoucherDetails ? (voucher.voucherId ? `#${voucher.voucherId}` : "—") : "—"}
-                      </div>
-
-                      <div className="text-xs text-slate-600 mt-1">
-                        {voucher.amount ? `${money(voucher.amount)} • ` : ""}
-                        Due: {voucher.dueDate ? fmtDate(voucher.dueDate) : "—"}
-                      </div>
-
-                      <div className="text-xs text-slate-600 mt-2">
-                        {voucher.voucherStatus === "NOT_GENERATED" && "Voucher not generated yet."}
-                        {voucher.voucherStatus === "GENERATED" &&
-                          (voucherPdf ? "Voucher PDF is ready." : "Voucher generated. PDF will appear when uploaded.")}
-                        {voucher.voucherStatus === "VERIFIED" && (voucherPdf ? "Payment verified. Voucher PDF available." : "Payment verified.")}
-                        {voucher.voucherStatus === "REJECTED" && "Voucher was rejected. Please contact admin/support."}
-                      </div>
-
-                      {voucherPdf ? (
-                        <div className="mt-2">
-                          <a
-                            href={voucherPdf}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs text-[#004aad] hover:underline break-all"
-                          >
-                            {voucherPdf}
-                          </a>
-                        </div>
-                      ) : null}
-                    </div>
+                  <div className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+                    <Briefcase size={16} className="text-[#004aad]" />
+                    Advocate: {c.advocate.assigned ? c.advocate.name || "Assigned (name not recorded)" : "Not assigned"}
                   </div>
-
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                          <Video size={14} className="text-[#004aad]" />
-                          Approved Meeting
-                        </div>
-                        <div className="text-sm text-slate-900 mt-1 font-semibold">
-                          {meeting ? (
-                            <>
-                              {meeting.mode} • {fmtDate(meeting.start_at)} • {fmtTime(meeting.start_at)}
-                            </>
-                          ) : (
-                            "No approved meeting yet."
-                          )}
-                        </div>
-                        <div className="text-xs text-slate-600 mt-1">
-                          {meeting?.link ? "Link is ready. You can join at meeting time." : "Admin will approve and add link."}
-                        </div>
-                      </div>
-
-                      {meeting?.link ? (
-                        <a
-                          href={safeExternalHref(meeting.link)}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#004aad] text-white text-xs font-semibold hover:bg-[#003b82] transition"
-                          title="Open Google Meet"
-                        >
-                          <ExternalLink size={14} />
-                          Open
-                        </a>
-                      ) : null}
-                    </div>
-
+                  <p className="mt-3 text-sm text-slate-600">{caseNextStep(c.lifecycleStatus)}</p>
+                  <div className="mt-4 flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => onContinueCase && ["DRAFT", "INTAKE_STARTED", "MATCHING_REVIEW"].includes(c.lifecycleStatus || "") ? onContinueCase(c) : open(c)}
+                      className="inline-flex min-h-[44px] items-center gap-2 px-4 py-2 rounded-xl bg-[#004aad] text-white hover:bg-[#003b82] transition text-sm font-semibold"
+                    >
+                      {onContinueCase && ["DRAFT", "INTAKE_STARTED"].includes(c.lifecycleStatus || "") ? "Continue case" : onContinueCase && c.lifecycleStatus === "MATCHING_REVIEW" ? "View lawyer options" : "Open case"} <ChevronRight size={16} />
+                    </button>
+                    {voucherPdf ? (
+                      <a href={safeExternalHref(voucherPdf)} target="_blank" rel="noreferrer"
+                        className="inline-flex min-h-[44px] items-center gap-2 text-sm text-[#004aad] hover:underline">
+                        <FileText size={14} /> Voucher PDF <ExternalLink size={14} />
+                      </a>
+                    ) : null}
                     {meeting?.link ? (
-                      <div className="mt-3">
-                        <a
-                          href={meeting.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-[#004aad] hover:underline break-all"
-                        >
-                          {meeting.link}
-                        </a>
-                      </div>
+                      <a href={safeExternalHref(meeting.link)} target="_blank" rel="noreferrer"
+                        className="inline-flex min-h-[44px] items-center gap-2 text-sm text-[#004aad] hover:underline">
+                        <Video size={14} /> Approved meeting <ExternalLink size={14} />
+                      </a>
                     ) : null}
                   </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
-                    <div className="text-xs text-slate-500">
-                      Alerts: <span className="text-slate-700 font-semibold">{c.alertsCount ?? 0}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {canDeleteCase(c) ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteCase(c);
-                          }}
-                          disabled={deletingCaseId === c.id}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 transition text-xs font-semibold text-rose-800 disabled:opacity-60"
-                        >
-                          <Trash2 size={14} />
-                          {deletingCaseId === c.id ? "Deleting..." : "Delete"}
-                        </button>
-                      ) : null}
-
+                  {canDeleteCase(c) ? (
+                    <div className="mt-4 pt-3 border-t border-slate-100">
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          open(c);
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition text-xs font-semibold"
+                        onClick={() => deleteCase(c)}
+                        disabled={deletingCaseId === c.id}
+                        className="inline-flex min-h-[44px] items-center gap-2 text-xs text-rose-800 hover:underline disabled:opacity-60"
                       >
-                        View Details
-                        <ChevronRight size={16} className="text-slate-400" />
+                        <Trash2 size={14} />
+                        {deletingCaseId === c.id ? "Deleting..." : "Delete"}
                       </button>
                     </div>
-                  </div>
-                </div>
+                  ) : null}
+                </article>
               );
             })}
           </div>
 
           {filtered.length === 0 && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm text-slate-700">
-              No cases match your search/filter.
+              {cases.length ? "No cases match your search. Try another search or choose All." : "You haven’t started a case yet."}
+                {!cases.length && onStartCase && <button type="button" onClick={onStartCase} className="block mt-4 min-h-[44px] px-4 rounded-xl bg-[#004aad] text-white font-semibold">Start a case</button>}
             </div>
           )}
         </>
