@@ -8,16 +8,16 @@ export async function allowance(db, actorId, lock = false) {
     (SELECT max(active_until) FROM charged,moment WHERE actor_user_id=$1 AND active_until>t) AS ledger_active,
     (SELECT max(expires_at) FROM public.case_intake_live_sessions,moment WHERE actor_user_id=$1 AND expires_at>t) AS binding_active,
     (SELECT count(*)::int FROM charged,moment WHERE actor_user_id=$1 AND created_at>t-INTERVAL '24 hours') AS daily,
-    (SELECT min(created_at)+INTERVAL '24 hours' FROM (SELECT created_at FROM charged,moment WHERE actor_user_id=$1 AND created_at>t-INTERVAL '24 hours' ORDER BY created_at DESC OFFSET 1 LIMIT 1) q) AS daily_retry,
+    (SELECT min(created_at)+INTERVAL '24 hours' FROM (SELECT created_at FROM charged,moment WHERE actor_user_id=$1 AND created_at>t-INTERVAL '24 hours' ORDER BY created_at DESC OFFSET 4 LIMIT 1) q) AS daily_retry,
     (SELECT count(*)::int FROM charged,moment WHERE actor_user_id=$1 AND created_at>t-INTERVAL '7 days') AS weekly,
-    (SELECT min(created_at)+INTERVAL '7 days' FROM (SELECT created_at FROM charged,moment WHERE actor_user_id=$1 AND created_at>t-INTERVAL '7 days' ORDER BY created_at DESC OFFSET 4 LIMIT 1) q) AS weekly_retry,
+    (SELECT min(created_at)+INTERVAL '7 days' FROM (SELECT created_at FROM charged,moment WHERE actor_user_id=$1 AND created_at>t-INTERVAL '7 days' ORDER BY created_at DESC OFFSET 24 LIMIT 1) q) AS weekly_retry,
     (SELECT count(*)::int FROM charged,moment WHERE created_at>t-INTERVAL '24 hours') AS platform,
-    (SELECT min(created_at)+INTERVAL '24 hours' FROM (SELECT created_at FROM charged,moment WHERE created_at>t-INTERVAL '24 hours' ORDER BY created_at DESC OFFSET 24 LIMIT 1) q) AS platform_retry`, [actorId]);
+    (SELECT min(created_at)+INTERVAL '24 hours' FROM (SELECT created_at FROM charged,moment WHERE created_at>t-INTERVAL '24 hours' ORDER BY created_at DESC OFFSET 99 LIMIT 1) q) AS platform_retry`, [actorId]);
   if (policy.rows[0].paused) return { canStart: false, reason: 'paused', retryAt: null };
   const restrictions = [];
   if (row.ledger_active || row.binding_active) restrictions.push({ reason: 'active_interview',
     time: Math.max(...[row.ledger_active, row.binding_active].filter(Boolean).map(value => new Date(value).getTime())) });
-  for (const [field, limit, reason] of [['daily',2,'daily_limit'],['weekly',5,'weekly_limit'],['platform',25,'platform_limit']]) {
+  for (const [field, limit, reason] of [['daily',5,'daily_limit'],['weekly',25,'weekly_limit'],['platform',100,'platform_limit']]) {
     if (row[field] >= limit) restrictions.push({ reason, time: new Date(row[`${field}_retry`]).getTime() });
   }
   // Starting becomes possible only after every currently blocking window ends.

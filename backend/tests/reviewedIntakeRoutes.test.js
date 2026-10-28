@@ -265,7 +265,7 @@ test.each([false, "true", 1, null])("repeat flag rejects nontrue %j",async value
   expect(live.admit).not.toHaveBeenCalled();
 });
 test('limit denial is receipted and replayed even when allowance changes',async()=>{
-  allowanceRow={daily:2,daily_retry:'2030-01-01T00:00:00Z'};
+  allowanceRow={daily:5,daily_retry:'2030-01-01T00:00:00Z'};
   const response=await post('/sessions',admission);
   expect(response.status).toBe(429);expect(response.body.code).toBe('INTERVIEW_DAILY_LIMIT');
   expect(response.headers['retry-after']).toBeDefined();

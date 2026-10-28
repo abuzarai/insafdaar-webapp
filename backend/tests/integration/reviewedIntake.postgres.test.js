@@ -420,7 +420,7 @@ const legacyWrites = [
       FROM generate_series(1,$2::int) g`, [actorId,n,age]);
   };
   test("durable daily window survives case deletion and service rereads", async () => {
-    await seed(101,42,false); await charge(2);
+    await seed(101,42,false); await charge(5);
     expect((await post()).body.code).toBe("INTERVIEW_DAILY_LIMIT");
     await real.query("DELETE FROM public.client_cases WHERE id=101");
     await seed(101,42,false);
@@ -428,18 +428,33 @@ const legacyWrites = [
     expect(live.admit).not.toHaveBeenCalled();
   });
   test("rolling 24h and 7d boundaries exclude expired charges", async () => {
-    await seed(101,42,false); await charge(2,"24 hours");
+    await seed(101,42,false); await charge(5,"24 hours");
     expect((await service.getReview(actor,101)).interviewAllowance.canStart).toBe(true);
-    await real.query("TRUNCATE public.interview_admissions"); await charge(5,"6 days 23 hours");
+    await real.query("TRUNCATE public.interview_admissions"); await charge(25,"6 days 23 hours");
     expect((await post()).body.code).toBe("INTERVIEW_WEEKLY_LIMIT");
     await real.query("UPDATE public.interview_admissions SET created_at=clock_timestamp()-INTERVAL '7 days'");
     expect((await service.getReview(actor,101)).interviewAllowance.canStart).toBe(true);
   });
   test("global window denies another account without exposing counts", async () => {
-    await seed(101,42,false); await charge(25,"1 hour",43);
+    await seed(101,42,false); await charge(100,"1 hour",43);
     const response=await post(); expect(response.status).toBe(429);
     expect(response.body.code).toBe("INTERVIEW_PLATFORM_LIMIT");
     expect(response.body.retryAt).toBeDefined(); expect(response.headers['retry-after']).toBeDefined();
+  });
+  test.each([
+    [5,"1 hour",42,"24 hours","daily_limit"],
+    [25,"2 days",42,"7 days","weekly_limit"],
+    [100,"1 hour",43,"24 hours","platform_limit"],
+  ])("new limit %i uses the charge that actually restores allowance",async(limit,age,actorId,window,reason)=>{
+    await seed(101,42,false);await charge(limit-1,age,actorId);
+    expect((await service.getReview(actor,101)).interviewAllowance.canStart).toBe(true);
+    await real.query(`INSERT INTO public.interview_admissions(actor_user_id,case_id,intent_key,request_hash,outcome,created_at,active_until)
+      VALUES ($1,999,'threshold',repeat('a',64),'accepted',clock_timestamp(),clock_timestamp()-INTERVAL '1 minute')`,[actorId]);
+    const expected=async(offset)=>(await real.query(`SELECT created_at+$1::interval AS retry_at FROM public.interview_admissions ORDER BY created_at ASC OFFSET $2 LIMIT 1`,[window,offset])).rows[0].retry_at.toISOString();
+    expect((await service.getReview(actor,101)).interviewAllowance).toMatchObject({canStart:false,reason,retryAt:await expected(0)});
+    await real.query(`INSERT INTO public.interview_admissions(actor_user_id,case_id,intent_key,request_hash,outcome,created_at,active_until)
+      VALUES ($1,999,'above-threshold',repeat('a',64),'accepted',clock_timestamp(),clock_timestamp()-INTERVAL '1 minute')`,[actorId]);
+    expect((await service.getReview(actor,101)).interviewAllowance).toMatchObject({canStart:false,reason,retryAt:await expected(1)});
   });
   test("cross-case simultaneous reservations share durable account active fence", async () => {
     await seed(101,42,false); await seed(102,42,false);
@@ -495,8 +510,8 @@ const legacyWrites = [
     expect((await real.query('SELECT parent_id FROM public.case_intake_revisions WHERE id=$1',[replacement.revisionId])).rows[0].parent_id).toBe(old.revisionId);
   });
 
-  test("singleton lock serializes competing accounts at global admission 25",async()=>{
-    await seed(101,42,false);await seed(102,43,false);await charge(24,'1 hour',77);
+  test("singleton lock serializes competing accounts at global admission 100",async()=>{
+    await seed(101,42,false);await seed(102,43,false);await charge(99,'1 hour',77);
     const holder=await lease(); await holder.query('BEGIN');
     await holder.query('SELECT * FROM public.interview_admission_policy FOR UPDATE');
     const a=post().then(value=>value);
@@ -506,7 +521,7 @@ const legacyWrites = [
     const results=await Promise.all([a,b]);
     expect(results.map(value=>value.status).sort()).toEqual([200,429]);
     expect(results.find(value=>value.status===429).body.code).toBe('INTERVIEW_PLATFORM_LIMIT');
-    expect(await count('interview_admissions')).toBe(25);expect(live.admit).toHaveBeenCalledTimes(1);
+    expect(await count('interview_admissions')).toBe(100);expect(live.admit).toHaveBeenCalledTimes(1);
   });
 
 });
